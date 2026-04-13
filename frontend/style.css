@@ -365,13 +365,45 @@ body {
     transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
+.edit-card-btn {
+    position: absolute;
+    top: 8px;
+    right: 36px;
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    background: transparent;
+    border: none;
+    color: var(--ink-soft);
+    cursor: pointer;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.card:hover .edit-card-btn,
 .card:hover .delete-card-btn {
     opacity: 1;
+}
+
+.edit-card-btn:hover {
+    background: #eef5fb;
+    color: #2a5f88;
 }
 
 .delete-card-btn:hover {
     background: #ffe9e9;
     color: var(--danger);
+}
+
+.card.card-collapsed .card-subject,
+.card.card-collapsed .card-deadline,
+.card.card-collapsed .card-blocked-reason,
+.card.card-collapsed .card-blocked-until,
+.card.card-collapsed .card-progress,
+.card.card-collapsed .card-actions-list,
+.card.card-collapsed .card-notes {
+    display: none !important;
 }
 
 .add-card-container {

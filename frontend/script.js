@@ -4,6 +4,7 @@ let draggedCard = null;
 let dragOriginParent = null;
 let dragOriginNextSibling = null;
 let dragOriginColumnId = null;
+const collapsedCardIds = new Set();
 
 function showToast(message, type = 'error') {
     let container = document.getElementById('toast-container');
@@ -529,6 +530,9 @@ function createCardElement(cardData, template, fallbackColumnId) {
     const cardMain = clone.querySelector('.card-main');
 
     setCardDataset(cardEl, cardData, fallbackColumnId);
+    if (collapsedCardIds.has(String(cardData.id))) {
+        cardEl.classList.add('card-collapsed');
+    }
     applyCardVisuals(cardEl);
 
     cardMain.addEventListener('mousedown', event => {
@@ -537,25 +541,43 @@ function createCardElement(cardData, template, fallbackColumnId) {
         }
     });
 
-    cardMain.addEventListener('click', async event => {
+    cardMain.addEventListener('click', event => {
         if (event.target.tagName === 'INPUT' || event.target.closest('.card-action-item')) {
             return;
         }
 
-        await openEditCardModal(cardEl);
+        toggleCardCollapsed(cardEl);
     });
 
     cardEl.addEventListener('dragstart', handleDragStart);
     cardEl.addEventListener('dragend', handleDragEnd);
 
+    const editBtn = clone.querySelector('.edit-card-btn');
+    editBtn.addEventListener('click', async event => {
+        event.stopPropagation();
+        await openEditCardModal(cardEl);
+    });
+
     const deleteBtn = clone.querySelector('.delete-card-btn');
-    deleteBtn.addEventListener('click', async () => {
+    deleteBtn.addEventListener('click', async event => {
+        event.stopPropagation();
         if (confirm('Tem certeza que deseja remover este card?')) {
             await deleteCard(cardData.id, cardEl);
         }
     });
 
     return cardEl;
+}
+
+function toggleCardCollapsed(cardEl) {
+    const cardId = String(cardEl.dataset.id || '');
+    const isCollapsed = cardEl.classList.toggle('card-collapsed');
+
+    if (isCollapsed) {
+        collapsedCardIds.add(cardId);
+    } else {
+        collapsedCardIds.delete(cardId);
+    }
 }
 
 function renderActions(actions, actionsListEl, progressEl, cardId, cardEl) {
