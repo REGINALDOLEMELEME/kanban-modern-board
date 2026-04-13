@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupBoardNameEditor();
     setupPdfExport();
     setupArchivedMenu();
+    setupGlobalCollapseControl();
     loadBoardName();
     loadBoard();
 });
@@ -77,6 +78,52 @@ function setupArchivedMenu() {
     });
 }
 
+function setupGlobalCollapseControl() {
+    const button = document.getElementById('global-toggle-collapse-btn');
+    if (!button) return;
+
+    button.addEventListener('click', () => {
+        const cards = [...document.querySelectorAll('#board .card')];
+        const hasCards = cards.length > 0;
+        const allCollapsed = hasCards && cards.every(card => card.classList.contains('card-collapsed'));
+        const nextCollapsedState = !allCollapsed;
+
+        cards.forEach(card => {
+            setCardCollapsed(card, nextCollapsedState);
+            const cardId = String(card.dataset.id || '');
+            if (nextCollapsedState) {
+                collapsedCardIds.add(cardId);
+            } else {
+                collapsedCardIds.delete(cardId);
+            }
+            applyCardVisuals(card);
+        });
+
+        document.querySelectorAll('.column').forEach(columnEl => {
+            const list = columnEl.querySelector('.card-list');
+            const columnButton = columnEl.querySelector('.column-toggle-collapse-btn');
+            if (list && columnButton) {
+                updateColumnCollapseButtonLabel(list, columnButton);
+            }
+        });
+
+        updateGlobalCollapseButtonLabel();
+    });
+
+    updateGlobalCollapseButtonLabel();
+}
+
+function updateGlobalCollapseButtonLabel() {
+    const button = document.getElementById('global-toggle-collapse-btn');
+    if (!button) return;
+
+    const cards = [...document.querySelectorAll('#board .card')];
+    const hasCards = cards.length > 0;
+    const allCollapsed = hasCards && cards.every(card => card.classList.contains('card-collapsed'));
+
+    button.disabled = !hasCards;
+    button.textContent = allCollapsed ? 'Exibir todos' : 'Colapsar todos';
+}
 async function exportBoardToPDF() {
     try {
         const [boardNameResponse, boardResponse] = await Promise.all([
@@ -330,6 +377,7 @@ function renderBoard(columnsData) {
             });
 
             updateColumnCollapseButtonLabel(cardList, toggleCollapseBtn);
+            updateGlobalCollapseButtonLabel();
         });
 
         addBtn.addEventListener('click', () => {
@@ -362,6 +410,7 @@ function renderBoard(columnsData) {
             addBtn.classList.remove('hidden');
             resetAddCardForm(titleInput, subjectInput, dueDateInput, notesInput, actionsInput, priorityInput);
             updateColumnCollapseButtonLabel(cardList, toggleCollapseBtn);
+            updateGlobalCollapseButtonLabel();
         });
 
         if (sortedCards.length > 0) {
@@ -380,6 +429,7 @@ function renderBoard(columnsData) {
     });
 
     renderDueAlerts(dueTodayCards);
+    updateGlobalCollapseButtonLabel();
 }
 
 function resetAddCardForm(titleInput, subjectInput, dueDateInput, notesInput, actionsInput, priorityInput) {
@@ -729,6 +779,8 @@ function toggleCardCollapsed(cardEl) {
             updateColumnCollapseButtonLabel(list, btn);
         }
     }
+
+    updateGlobalCollapseButtonLabel();
 }
 
 function setCardCollapsed(cardEl, collapsed) {
@@ -1347,8 +1399,18 @@ async function deleteCard(cardId, element) {
 
         if (!response.ok) throw new Error('Failed to delete card');
         element.remove();
+        const columnEl = element.closest('.column');
+        if (columnEl) {
+            const list = columnEl.querySelector('.card-list');
+            const btn = columnEl.querySelector('.column-toggle-collapse-btn');
+            if (list && btn) {
+                updateColumnCollapseButtonLabel(list, btn);
+            }
+        }
+        updateGlobalCollapseButtonLabel();
     } catch (err) {
         console.error('Error deleting card:', err);
         showToast('Falha ao remover card.');
     }
 }
+

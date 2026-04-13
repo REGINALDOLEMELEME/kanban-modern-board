@@ -109,6 +109,11 @@ body {
     background: #f4f8fb;
 }
 
+#global-toggle-collapse-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
 .board-name-hint {
     margin-top: 8px;
     color: var(--ink-soft);
@@ -968,3 +973,4 @@ body {
     border-color: #f4a39a;
     box-shadow: 0 0 0 1px rgba(192, 57, 43, 0.18), 0 12px 24px rgba(192, 57, 43, 0.12);
 }
+
