@@ -40,6 +40,7 @@
                     <input class="new-card-subject-input" type="text" placeholder="Assunto" />
                     <label class="new-card-priority-label">Prazo</label>
                     <input class="new-card-due-date-input" type="date" />
+                    <textarea class="new-card-notes-input" placeholder="Observacoes"></textarea>
                     <textarea class="new-card-actions-input" placeholder="Acoes (uma por linha)"></textarea>
                     <label class="new-card-priority-label">Prioridade</label>
                     <select class="new-card-priority-input">
@@ -56,21 +57,74 @@
         </section>
     </template>
 
-    <template id="card-template">
+            <template id="card-template">
         <article class="card" draggable="true" data-id="">
             <div class="card-main">
                 <div class="card-topline">
                     <h3 class="card-title"></h3>
-                    <span class="priority-chip"></span>
+                    <div class="card-chip-row">
+                        <span class="blocked-chip hidden">Bloqueado</span>
+                        <span class="priority-chip"></span>
+                    </div>
                 </div>
                 <p class="card-subject hidden"></p>
                 <p class="card-deadline hidden"></p>
+                <p class="card-blocked-reason hidden"></p>
+                <p class="card-blocked-until hidden"></p>
                 <div class="card-progress hidden"></div>
                 <div class="card-actions-list"></div>
+                <p class="card-notes hidden"></p>
             </div>
             <button class="delete-card-btn" aria-label="Remover card">&times;</button>
         </article>
     </template>
+
+    <div id="blocked-modal" class="blocked-modal hidden" role="dialog" aria-modal="true" aria-labelledby="blocked-modal-title">
+        <div class="blocked-modal-panel">
+            <h3 id="blocked-modal-title">Detalhes do bloqueio</h3>
+            <p class="blocked-modal-hint">Este card foi movido para Blocked. Informe o motivo e a data prevista para conclusão.</p>
+            <label class="new-card-priority-label" for="blocked-reason-input">O que está bloqueando?</label>
+            <textarea id="blocked-reason-input" class="blocked-modal-input" placeholder="Descreva o bloqueio"></textarea>
+            <label class="new-card-priority-label" for="blocked-until-input">Data prevista de conclusão</label>
+            <input id="blocked-until-input" class="blocked-modal-input" type="date" />
+            <div class="blocked-modal-actions">
+                <button id="blocked-save-btn" class="save-card-btn">Salvar bloqueio</button>
+                <button id="blocked-cancel-btn" class="cancel-card-btn" aria-label="Cancelar">X</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-card-modal" class="blocked-modal hidden" role="dialog" aria-modal="true" aria-labelledby="edit-card-modal-title">
+        <div class="blocked-modal-panel">
+            <h3 id="edit-card-modal-title">Editar card</h3>
+            <label class="new-card-priority-label" for="edit-title-input">Titulo</label>
+            <input id="edit-title-input" class="blocked-modal-input" type="text" />
+            <label class="new-card-priority-label" for="edit-subject-input">Assunto</label>
+            <input id="edit-subject-input" class="blocked-modal-input" type="text" />
+            <label class="new-card-priority-label" for="edit-due-date-input">Prazo</label>
+            <input id="edit-due-date-input" class="blocked-modal-input" type="date" />
+            <label class="new-card-priority-label" for="edit-notes-input">Observacoes</label>
+            <textarea id="edit-notes-input" class="blocked-modal-input" placeholder="Observacoes"></textarea>
+            <label class="new-card-priority-label" for="edit-actions-input">Acoes (uma por linha)</label>
+            <textarea id="edit-actions-input" class="blocked-modal-input" placeholder="Acoes (uma por linha)"></textarea>
+            <label class="new-card-priority-label" for="edit-priority-input">Prioridade</label>
+            <select id="edit-priority-input" class="blocked-modal-input">
+                <option value="normal">Normal</option>
+                <option value="ponderado">Ponderado</option>
+                <option value="urgente">Urgente</option>
+            </select>
+            <div id="edit-blocked-section" class="hidden">
+                <label class="new-card-priority-label" for="edit-blocked-reason-input">O que está bloqueando?</label>
+                <textarea id="edit-blocked-reason-input" class="blocked-modal-input" placeholder="Descreva o bloqueio"></textarea>
+                <label class="new-card-priority-label" for="edit-blocked-until-input">Data prevista de conclusão</label>
+                <input id="edit-blocked-until-input" class="blocked-modal-input" type="date" />
+            </div>
+            <div class="blocked-modal-actions">
+                <button id="edit-card-save-btn" class="save-card-btn">Salvar alterações</button>
+                <button id="edit-card-cancel-btn" class="cancel-card-btn" aria-label="Cancelar">X</button>
+            </div>
+        </div>
+    </div>
 
     <script src="script.js"></script>
 </body>

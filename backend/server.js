@@ -76,9 +76,12 @@ async function initDB() {
 
         // Keep schema compatible with older DBs.
         await ensureColumnExists('cards', 'subject', 'VARCHAR(255) NULL');
+        await ensureColumnExists('cards', 'notes', 'TEXT NULL');
         await ensureColumnExists('cards', 'due_date', 'DATE NULL');
         await ensureColumnExists('cards', 'actions', 'JSON NULL');
         await ensureColumnExists('cards', 'priority', "ENUM('normal', 'ponderado', 'urgente') NOT NULL DEFAULT 'normal'");
+        await ensureColumnExists('cards', 'blocked_reason', 'TEXT NULL');
+        await ensureColumnExists('cards', 'blocked_until', 'DATE NULL');
 
         // Insert default columns if they don't exist
         const [rows] = await pool.query('SELECT COUNT(*) as count FROM columns');
@@ -113,6 +116,15 @@ function sanitizeDueDate(dueDateInput) {
     }
 
     return null;
+}
+
+function sanitizeBlockedText(blockedReasonInput) {
+    const text = String(blockedReasonInput || '').trim();
+    return text ? text : null;
+}
+
+function isBlockedColumnTitle(title) {
+    return String(title || '').trim().toLowerCase() === 'blocked';
 }
 
 function parseActions(actionsInput) {
@@ -207,12 +219,14 @@ app.get('/api/board', async (req, res) => {
 
 // 2. Create a new card
 app.post('/api/cards', async (req, res) => {
-    const { column_id, content, subject, due_date, actions, priority } = req.body;
+    const { column_id, content, subject, notes, due_date, actions, priority, blocked_reason, blocked_until } = req.body;
     if (!column_id || !content) return res.status(400).json({ error: 'Missing column_id or content' });
 
     const sanitizedActions = parseActions(actions);
     const sanitizedPriority = sanitizePriority(priority);
     const sanitizedDueDate = sanitizeDueDate(due_date);
+    const sanitizedBlockedReason = sanitizeBlockedText(blocked_reason);
+    const sanitizedBlockedUntil = sanitizeDueDate(blocked_until);
 
     try {
         // Get max order index for the column
@@ -220,8 +234,8 @@ app.post('/api/cards', async (req, res) => {
         const orderIndex = (orderRows[0].max_order || 0) + 1;
 
         const [result] = await pool.query(
-            'INSERT INTO cards (column_id, content, subject, due_date, actions, priority, order_index) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [column_id, content, subject || null, sanitizedDueDate, JSON.stringify(sanitizedActions), sanitizedPriority, orderIndex]
+            'INSERT INTO cards (column_id, content, subject, notes, due_date, actions, priority, blocked_reason, blocked_until, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [column_id, content, subject || null, notes ? String(notes).trim() : null, sanitizedDueDate, JSON.stringify(sanitizedActions), sanitizedPriority, sanitizedBlockedReason, sanitizedBlockedUntil, orderIndex]
         );
 
         res.status(201).json({
@@ -229,9 +243,12 @@ app.post('/api/cards', async (req, res) => {
             column_id,
             content,
             subject: subject || null,
+            notes: notes ? String(notes).trim() : null,
             due_date: sanitizedDueDate,
             actions: sanitizedActions,
             priority: sanitizedPriority,
+            blocked_reason: sanitizedBlockedReason,
+            blocked_until: sanitizedBlockedUntil,
             order_index: orderIndex
         });
     } catch (err) {
@@ -243,13 +260,100 @@ app.post('/api/cards', async (req, res) => {
 // 3. Move a card (update its column)
 app.put('/api/cards/:id/move', async (req, res) => {
     const cardId = req.params.id;
-    const { column_id } = req.body;
+    const { column_id, blocked_reason, blocked_until } = req.body;
 
     if (!column_id) return res.status(400).json({ error: 'Missing column_id' });
 
     try {
-        await pool.query('UPDATE cards SET column_id = ? WHERE id = ?', [column_id, cardId]);
-        res.json({ success: true });
+        const [columnRows] = await pool.query('SELECT title FROM columns WHERE id = ? LIMIT 1', [column_id]);
+        if (columnRows.length === 0) return res.status(404).json({ error: 'Column not found' });
+
+        const isBlockedColumn = isBlockedColumnTitle(columnRows[0].title);
+        const sanitizedBlockedReason = sanitizeBlockedText(blocked_reason);
+        const sanitizedBlockedUntil = sanitizeDueDate(blocked_until);
+
+        if (isBlockedColumn) {
+            if (sanitizedBlockedReason && sanitizedBlockedUntil) {
+                await pool.query(
+                    'UPDATE cards SET column_id = ?, blocked_reason = ?, blocked_until = ? WHERE id = ?',
+                    [column_id, sanitizedBlockedReason, sanitizedBlockedUntil, cardId]
+                );
+            } else if (!sanitizedBlockedReason && !sanitizedBlockedUntil) {
+                await pool.query('UPDATE cards SET column_id = ? WHERE id = ?', [column_id, cardId]);
+            } else {
+                return res.status(400).json({ error: 'Missing blocked_reason or blocked_until for Blocked column' });
+            }
+        } else {
+            await pool.query(
+                'UPDATE cards SET column_id = ?, blocked_reason = NULL, blocked_until = NULL WHERE id = ?',
+                [column_id, cardId]
+            );
+        }
+
+        const [updatedRows] = await pool.query('SELECT blocked_reason, blocked_until FROM cards WHERE id = ? LIMIT 1', [cardId]);
+        const updatedCard = updatedRows[0] || {};
+
+        res.json({
+            success: true,
+            blocked_reason: isBlockedColumn ? updatedCard.blocked_reason || null : null,
+            blocked_until: isBlockedColumn ? updatedCard.blocked_until || null : null
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.put('/api/cards/:id', async (req, res) => {
+    const cardId = req.params.id;
+    const { content, subject, notes, due_date, actions, priority, blocked_reason, blocked_until } = req.body;
+
+    const trimmedContent = String(content || '').trim();
+    if (!trimmedContent) return res.status(400).json({ error: 'Missing content' });
+
+    const sanitizedActions = parseActions(actions);
+    const sanitizedPriority = sanitizePriority(priority);
+    const sanitizedDueDate = sanitizeDueDate(due_date);
+    const sanitizedBlockedReason = sanitizeBlockedText(blocked_reason);
+    const sanitizedBlockedUntil = sanitizeDueDate(blocked_until);
+
+    if (sanitizedBlockedReason && !sanitizedBlockedUntil) {
+        return res.status(400).json({ error: 'Missing blocked_until when blocked_reason is provided' });
+    }
+
+    try {
+        await pool.query(
+            `UPDATE cards
+             SET content = ?, subject = ?, due_date = ?, actions = ?, priority = ?, blocked_reason = ?, blocked_until = ?
+             , notes = ?
+             WHERE id = ?`,
+            [
+                trimmedContent,
+                subject ? String(subject).trim() : null,
+                sanitizedDueDate,
+                JSON.stringify(sanitizedActions),
+                sanitizedPriority,
+                sanitizedBlockedReason,
+                sanitizedBlockedUntil,
+                notes ? String(notes).trim() : null,
+                cardId
+            ]
+        );
+
+        res.json({
+            success: true,
+            card: {
+                id: Number(cardId),
+                content: trimmedContent,
+                subject: subject ? String(subject).trim() : null,
+                notes: notes ? String(notes).trim() : null,
+                due_date: sanitizedDueDate,
+                actions: sanitizedActions,
+                priority: sanitizedPriority,
+                blocked_reason: sanitizedBlockedReason,
+                blocked_until: sanitizedBlockedUntil
+            }
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Internal server error' });

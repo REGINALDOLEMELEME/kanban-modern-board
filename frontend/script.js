@@ -1,5 +1,32 @@
 const API_URL = 'http://localhost:3000/api';
 
+let draggedCard = null;
+let dragOriginParent = null;
+let dragOriginNextSibling = null;
+let dragOriginColumnId = null;
+
+function showToast(message, type = 'error') {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => toast.classList.add('show'));
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 250);
+    }, 3200);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     setupBoardNameEditor();
     setupPdfExport();
@@ -49,7 +76,7 @@ async function saveBoardName(name) {
     const trimmed = String(name || '').trim();
 
     if (!trimmed) {
-        alert('Informe um nome para o quadro.');
+        showToast('Informe um nome para o quadro.');
         return;
     }
 
@@ -66,7 +93,7 @@ async function saveBoardName(name) {
         document.getElementById('board-name-input').value = data.name;
     } catch (error) {
         console.error('Error saving board name:', error);
-        alert('Nao foi possivel salvar o nome do quadro.');
+        showToast('Nao foi possivel salvar o nome do quadro.');
     }
 }
 
@@ -78,8 +105,16 @@ async function loadBoard() {
         renderBoard(columns);
     } catch (error) {
         console.error('Error loading board:', error);
-        alert('Could not load board. Is the backend running?');
+        showToast('Nao foi possivel carregar o quadro. Verifique se o backend esta ativo.');
     }
+}
+
+function normalizeColumnTitle(title) {
+    return String(title || '').trim().toLowerCase();
+}
+
+function isBlockedColumnTitle(title) {
+    return normalizeColumnTitle(title) === 'blocked';
 }
 
 function renderBoard(columnsData) {
@@ -94,6 +129,7 @@ function renderBoard(columnsData) {
         const columnClone = columnTemplate.content.cloneNode(true);
         const columnEl = columnClone.querySelector('.column');
         columnEl.dataset.id = columnData.id;
+        columnEl.dataset.isBlocked = String(isBlockedColumnTitle(columnData.title));
 
         columnClone.querySelector('.column-title').textContent = columnData.title;
 
@@ -103,7 +139,7 @@ function renderBoard(columnsData) {
 
         if (columnData.cards && columnData.cards.length > 0) {
             columnData.cards.forEach(cardData => {
-                const cardEl = createCardElement(cardData, cardTemplate);
+                const cardEl = createCardElement(cardData, cardTemplate, columnData.id);
                 cardList.appendChild(cardEl);
             });
         }
@@ -115,6 +151,7 @@ function renderBoard(columnsData) {
         const titleInput = columnClone.querySelector('.new-card-title-input');
         const subjectInput = columnClone.querySelector('.new-card-subject-input');
         const dueDateInput = columnClone.querySelector('.new-card-due-date-input');
+        const notesInput = columnClone.querySelector('.new-card-notes-input');
         const actionsInput = columnClone.querySelector('.new-card-actions-input');
         const priorityInput = columnClone.querySelector('.new-card-priority-input');
 
@@ -127,25 +164,26 @@ function renderBoard(columnsData) {
         cancelBtn.addEventListener('click', () => {
             addForm.classList.add('hidden');
             addBtn.classList.remove('hidden');
-            resetAddCardForm(titleInput, subjectInput, dueDateInput, actionsInput, priorityInput);
+            resetAddCardForm(titleInput, subjectInput, dueDateInput, notesInput, actionsInput, priorityInput);
         });
 
         saveBtn.addEventListener('click', async () => {
             const title = titleInput.value.trim();
             const subject = subjectInput.value.trim();
             const dueDate = dueDateInput.value;
+            const notes = notesInput.value.trim();
             const actions = parseActionsFromText(actionsInput.value);
             const priority = priorityInput.value;
 
             if (!title) {
-                alert('Preencha o titulo do card.');
+                showToast('Preencha o titulo do card.');
                 return;
             }
 
-            await addCard(columnData.id, { title, subject, dueDate, actions, priority }, cardList, cardTemplate);
+            await addCard(columnData.id, { title, subject, dueDate, notes, actions, priority }, cardList, cardTemplate);
             addForm.classList.add('hidden');
             addBtn.classList.remove('hidden');
-            resetAddCardForm(titleInput, subjectInput, dueDateInput, actionsInput, priorityInput);
+            resetAddCardForm(titleInput, subjectInput, dueDateInput, notesInput, actionsInput, priorityInput);
         });
 
         if (columnData.cards && columnData.cards.length > 0) {
@@ -165,10 +203,11 @@ function renderBoard(columnsData) {
     renderDueAlerts(dueTodayCards);
 }
 
-function resetAddCardForm(titleInput, subjectInput, dueDateInput, actionsInput, priorityInput) {
+function resetAddCardForm(titleInput, subjectInput, dueDateInput, notesInput, actionsInput, priorityInput) {
     titleInput.value = '';
     subjectInput.value = '';
     dueDateInput.value = '';
+    notesInput.value = '';
     actionsInput.value = '';
     priorityInput.value = 'normal';
 }
@@ -237,6 +276,11 @@ function parseActionsFromText(actionsText) {
         .map(text => ({ text, done: false }));
 }
 
+function actionsToText(actions) {
+    const normalizedActions = normalizeActions(actions);
+    return normalizedActions.map(action => action.text).join('\n');
+}
+
 function buildPriorityLabel(priority) {
     const labels = {
         normal: 'Normal',
@@ -265,49 +309,107 @@ function normalizeActions(actions) {
         .filter(Boolean);
 }
 
-function createCardElement(cardData, template) {
+function setCardDataset(cardEl, cardData, fallbackColumnId) {
+    cardEl.dataset.id = cardData.id;
+    cardEl.dataset.columnId = String(cardData.column_id || fallbackColumnId || '');
+    cardEl.dataset.title = cardData.content || '';
+    cardEl.dataset.subject = cardData.subject || '';
+    cardEl.dataset.dueDate = normalizeDateInput(cardData.due_date);
+    cardEl.dataset.notes = cardData.notes || '';
+    cardEl.dataset.priority = cardData.priority || 'normal';
+    cardEl.dataset.blockedReason = cardData.blocked_reason || '';
+    cardEl.dataset.blockedUntil = normalizeDateInput(cardData.blocked_until);
+    cardEl.dataset.actions = JSON.stringify(normalizeActions(cardData.actions));
+}
+
+function applyCardVisuals(cardEl) {
+    const titleEl = cardEl.querySelector('.card-title');
+    const subjectEl = cardEl.querySelector('.card-subject');
+    const deadlineEl = cardEl.querySelector('.card-deadline');
+    const notesEl = cardEl.querySelector('.card-notes');
+    const blockedReasonEl = cardEl.querySelector('.card-blocked-reason');
+    const blockedUntilEl = cardEl.querySelector('.card-blocked-until');
+    const blockedChipEl = cardEl.querySelector('.blocked-chip');
+    const priorityChipEl = cardEl.querySelector('.priority-chip');
+    const progressEl = cardEl.querySelector('.card-progress');
+    const actionsListEl = cardEl.querySelector('.card-actions-list');
+
+    titleEl.textContent = cardEl.dataset.title || '';
+
+    if (cardEl.dataset.subject) {
+        subjectEl.textContent = cardEl.dataset.subject;
+        subjectEl.classList.remove('hidden');
+    } else {
+        subjectEl.classList.add('hidden');
+        subjectEl.textContent = '';
+    }
+
+    if (cardEl.dataset.dueDate) {
+        deadlineEl.textContent = `Prazo: ${formatDateBR(cardEl.dataset.dueDate)}`;
+        deadlineEl.classList.remove('hidden');
+        deadlineEl.classList.toggle('deadline-today', isDueToday(cardEl.dataset.dueDate));
+    } else {
+        deadlineEl.classList.add('hidden');
+        deadlineEl.classList.remove('deadline-today');
+        deadlineEl.textContent = '';
+    }
+
+    if (cardEl.dataset.notes) {
+        notesEl.textContent = `Observacoes: ${cardEl.dataset.notes}`;
+        notesEl.classList.remove('hidden');
+    } else {
+        notesEl.classList.add('hidden');
+        notesEl.textContent = '';
+    }
+
+    if (cardEl.dataset.blockedReason) {
+        blockedReasonEl.textContent = `Bloqueio: ${cardEl.dataset.blockedReason}`;
+        blockedReasonEl.classList.remove('hidden');
+        blockedChipEl.classList.remove('hidden');
+        cardEl.classList.add('card-blocked');
+    } else {
+        blockedReasonEl.classList.add('hidden');
+        blockedReasonEl.textContent = '';
+        blockedChipEl.classList.add('hidden');
+        cardEl.classList.remove('card-blocked');
+    }
+
+    if (cardEl.dataset.blockedUntil) {
+        blockedUntilEl.textContent = `Conclusao prevista: ${formatDateBR(cardEl.dataset.blockedUntil)}`;
+        blockedUntilEl.classList.remove('hidden');
+    } else {
+        blockedUntilEl.classList.add('hidden');
+        blockedUntilEl.textContent = '';
+    }
+
+    const priority = cardEl.dataset.priority || 'normal';
+    priorityChipEl.textContent = buildPriorityLabel(priority);
+    priorityChipEl.className = 'priority-chip';
+    priorityChipEl.classList.add(`priority-chip-${priority}`);
+
+    renderActions(JSON.parse(cardEl.dataset.actions || '[]'), actionsListEl, progressEl, cardEl.dataset.id, cardEl);
+}
+
+function createCardElement(cardData, template, fallbackColumnId) {
     const clone = template.content.cloneNode(true);
     const cardEl = clone.querySelector('.card');
     const cardMain = clone.querySelector('.card-main');
-    const titleEl = clone.querySelector('.card-title');
-    const subjectEl = clone.querySelector('.card-subject');
-    const deadlineEl = clone.querySelector('.card-deadline');
-    const priorityChipEl = clone.querySelector('.priority-chip');
-    const progressEl = clone.querySelector('.card-progress');
-    const actionsListEl = clone.querySelector('.card-actions-list');
 
-    cardEl.dataset.id = cardData.id;
-    titleEl.textContent = cardData.content;
+    setCardDataset(cardEl, cardData, fallbackColumnId);
+    applyCardVisuals(cardEl);
 
-    if (cardData.subject) {
-        subjectEl.textContent = cardData.subject;
-        subjectEl.classList.remove('hidden');
-    }
-
-    if (cardData.due_date) {
-        deadlineEl.textContent = `Prazo: ${formatDateBR(cardData.due_date)}`;
-        deadlineEl.classList.remove('hidden');
-        if (isDueToday(cardData.due_date)) {
-            deadlineEl.classList.add('deadline-today');
+    cardMain.addEventListener('mousedown', event => {
+        if (event.target.tagName === 'INPUT') {
+            event.stopPropagation();
         }
-    }
+    });
 
-    const priority = cardData.priority || 'normal';
-    priorityChipEl.textContent = buildPriorityLabel(priority);
-    priorityChipEl.classList.add(`priority-chip-${priority}`);
-
-    const actions = normalizeActions(cardData.actions);
-
-    if (actions.length > 0) {
-        renderActions(actions, actionsListEl, progressEl, cardData.id);
-    } else {
-        actionsListEl.classList.add('hidden');
-    }
-
-    cardMain.addEventListener('mousedown', e => {
-        if (e.target.tagName === 'INPUT') {
-            e.stopPropagation();
+    cardMain.addEventListener('click', async event => {
+        if (event.target.tagName === 'INPUT' || event.target.closest('.card-action-item')) {
+            return;
         }
+
+        await openEditCardModal(cardEl);
     });
 
     cardEl.addEventListener('dragstart', handleDragStart);
@@ -323,15 +425,26 @@ function createCardElement(cardData, template) {
     return cardEl;
 }
 
-function renderActions(actions, actionsListEl, progressEl, cardId) {
-    actionsListEl.classList.remove('hidden');
+function renderActions(actions, actionsListEl, progressEl, cardId, cardEl) {
+    const normalizedActions = normalizeActions(actions);
+
     actionsListEl.innerHTML = '';
 
-    const doneCount = actions.filter(action => action.done).length;
-    progressEl.classList.remove('hidden');
-    progressEl.textContent = `${doneCount}/${actions.length} acoes concluidas`;
+    if (!normalizedActions.length) {
+        actionsListEl.classList.add('hidden');
+        progressEl.classList.add('hidden');
+        progressEl.textContent = '';
+        cardEl.dataset.actions = JSON.stringify([]);
+        return;
+    }
 
-    actions.forEach((action, index) => {
+    actionsListEl.classList.remove('hidden');
+    progressEl.classList.remove('hidden');
+
+    const doneCount = normalizedActions.filter(action => action.done).length;
+    progressEl.textContent = `${doneCount}/${normalizedActions.length} acoes concluidas`;
+
+    normalizedActions.forEach((action, index) => {
         const row = document.createElement('label');
         row.className = 'card-action-item';
 
@@ -349,23 +462,28 @@ function renderActions(actions, actionsListEl, progressEl, cardId) {
 
         checkbox.addEventListener('change', async event => {
             event.stopPropagation();
-            actions[index].done = checkbox.checked;
+            normalizedActions[index].done = checkbox.checked;
             text.classList.toggle('done', checkbox.checked);
-            await updateCardActions(cardId, actions);
-            const doneNow = actions.filter(item => item.done).length;
-            progressEl.textContent = `${doneNow}/${actions.length} acoes concluidas`;
+            cardEl.dataset.actions = JSON.stringify(normalizedActions);
+            await updateCardActions(cardId, normalizedActions);
+            const doneNow = normalizedActions.filter(item => item.done).length;
+            progressEl.textContent = `${doneNow}/${normalizedActions.length} acoes concluidas`;
         });
 
         row.appendChild(checkbox);
         row.appendChild(text);
         actionsListEl.appendChild(row);
     });
-}
 
-let draggedCard = null;
+    cardEl.dataset.actions = JSON.stringify(normalizedActions);
+}
 
 function handleDragStart(e) {
     draggedCard = this;
+    dragOriginParent = this.parentElement;
+    dragOriginNextSibling = this.nextElementSibling;
+    dragOriginColumnId = this.closest('.column')?.dataset.id || null;
+
     setTimeout(() => this.classList.add('dragging'), 0);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', this.dataset.id);
@@ -374,6 +492,16 @@ function handleDragStart(e) {
 function handleDragEnd() {
     this.classList.remove('dragging');
     draggedCard = null;
+}
+
+function revertDraggedCardPosition() {
+    if (!draggedCard || !dragOriginParent) return;
+
+    if (dragOriginNextSibling && dragOriginNextSibling.parentElement === dragOriginParent) {
+        dragOriginParent.insertBefore(draggedCard, dragOriginNextSibling);
+    } else {
+        dragOriginParent.appendChild(draggedCard);
+    }
 }
 
 function handleDragOver(e) {
@@ -388,24 +516,125 @@ function handleDragOver(e) {
     }
 }
 
+function openBlockedModal(existing = {}) {
+    const modal = document.getElementById('blocked-modal');
+    const reasonInput = document.getElementById('blocked-reason-input');
+    const untilInput = document.getElementById('blocked-until-input');
+    const saveBtn = document.getElementById('blocked-save-btn');
+    const cancelBtn = document.getElementById('blocked-cancel-btn');
+
+    reasonInput.value = existing.reason || '';
+    untilInput.value = normalizeDateInput(existing.until || '');
+
+    modal.classList.remove('hidden');
+    reasonInput.focus();
+
+    return new Promise(resolve => {
+        const cleanup = () => {
+            saveBtn.removeEventListener('click', onSave);
+            cancelBtn.removeEventListener('click', onCancel);
+        };
+
+        const close = () => {
+            modal.classList.add('hidden');
+            cleanup();
+        };
+
+        const onSave = () => {
+            const reason = reasonInput.value.trim();
+            const until = normalizeDateInput(untilInput.value);
+
+            if (!reason || !until) {
+                showToast('Preencha o motivo do bloqueio e a data prevista de conclusao.');
+                return;
+            }
+
+            close();
+            resolve({ reason, until });
+        };
+
+        const onCancel = () => {
+            close();
+            resolve(null);
+        };
+
+        saveBtn.addEventListener('click', onSave);
+        cancelBtn.addEventListener('click', onCancel);
+    });
+}
+
 async function handleDrop(e) {
     e.preventDefault();
     if (!draggedCard) return;
+    const movedCard = draggedCard;
 
-    const columnId = this.closest('.column').dataset.id;
-    const cardId = draggedCard.dataset.id;
+    const targetColumnEl = this.closest('.column');
+    const columnId = targetColumnEl.dataset.id;
+    const cardId = movedCard.dataset.id;
+    const isTargetBlocked = targetColumnEl.dataset.isBlocked === 'true';
+    const isEnteringBlocked = isTargetBlocked && columnId !== dragOriginColumnId;
+
+    let blockedPayload = null;
+
+    if (isEnteringBlocked) {
+        const details = await openBlockedModal({
+            reason: movedCard.dataset.blockedReason,
+            until: movedCard.dataset.blockedUntil
+        });
+
+        if (!details) {
+            revertDraggedCardPosition();
+            return;
+        }
+
+        blockedPayload = {
+            blocked_reason: details.reason,
+            blocked_until: details.until
+        };
+    }
 
     try {
+        const movePayload = { column_id: columnId };
+        if (blockedPayload) {
+            movePayload.blocked_reason = blockedPayload.blocked_reason;
+            movePayload.blocked_until = blockedPayload.blocked_until;
+        }
+
         const response = await fetch(`${API_URL}/cards/${cardId}/move`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ column_id: columnId })
+            body: JSON.stringify(movePayload)
         });
 
-        if (!response.ok) throw new Error('Failed to move card in DB');
+        if (!response.ok) {
+            let backendMessage = 'Falha ao salvar nova coluna do card.';
+            try {
+                const errorBody = await response.json();
+                if (errorBody?.error) backendMessage = errorBody.error;
+            } catch {
+                // ignore parse errors and keep default message
+            }
+            throw new Error(backendMessage);
+        }
+
+        const data = await response.json();
+        movedCard.dataset.columnId = String(columnId);
+
+        if (isTargetBlocked) {
+            movedCard.dataset.blockedReason = data.blocked_reason || blockedPayload?.blocked_reason || '';
+            movedCard.dataset.blockedUntil = normalizeDateInput(data.blocked_until || blockedPayload?.blocked_until || '');
+        } else {
+            // Defensive clear when leaving Blocked, even if API response shape changes.
+            movedCard.dataset.blockedReason = '';
+            movedCard.dataset.blockedUntil = '';
+        }
+
+        applyCardVisuals(movedCard);
+        await loadBoard();
     } catch (err) {
         console.error('Failed to move card:', err);
-        alert('Falha ao salvar nova coluna do card.');
+        revertDraggedCardPosition();
+        showToast(err.message || 'Falha ao salvar nova coluna do card.');
     }
 }
 
@@ -431,8 +660,11 @@ async function addCard(columnId, cardData, container, template) {
             content: cardData.title,
             subject: cardData.subject || null,
             due_date: cardData.dueDate || null,
+            notes: cardData.notes || null,
             actions: cardData.actions || [],
-            priority: cardData.priority || 'normal'
+            priority: cardData.priority || 'normal',
+            blocked_reason: null,
+            blocked_until: null
         };
 
         const response = await fetch(`${API_URL}/cards`, {
@@ -444,11 +676,12 @@ async function addCard(columnId, cardData, container, template) {
         if (!response.ok) throw new Error('Failed to add card');
 
         const newCardData = await response.json();
-        const cardEl = createCardElement(newCardData, template);
+        const cardEl = createCardElement(newCardData, template, columnId);
         container.appendChild(cardEl);
+        loadBoard();
     } catch (err) {
         console.error('Error adding card:', err);
-        alert('Falha ao criar card.');
+        showToast('Falha ao criar card.');
     }
 }
 
@@ -463,7 +696,113 @@ async function updateCardActions(cardId, actions) {
         if (!response.ok) throw new Error('Failed to update card actions');
     } catch (err) {
         console.error('Error updating card actions:', err);
-        alert('Falha ao salvar estado dos checkboxes.');
+        showToast('Falha ao salvar estado dos checkboxes.');
+    }
+}
+
+async function openEditCardModal(cardEl) {
+    const modal = document.getElementById('edit-card-modal');
+    const titleInput = document.getElementById('edit-title-input');
+    const subjectInput = document.getElementById('edit-subject-input');
+    const dueDateInput = document.getElementById('edit-due-date-input');
+    const notesInput = document.getElementById('edit-notes-input');
+    const actionsInput = document.getElementById('edit-actions-input');
+    const priorityInput = document.getElementById('edit-priority-input');
+    const blockedSection = document.getElementById('edit-blocked-section');
+    const blockedReasonInput = document.getElementById('edit-blocked-reason-input');
+    const blockedUntilInput = document.getElementById('edit-blocked-until-input');
+    const saveBtn = document.getElementById('edit-card-save-btn');
+    const cancelBtn = document.getElementById('edit-card-cancel-btn');
+
+    const isCardInBlocked = cardEl.closest('.column')?.dataset.isBlocked === 'true';
+
+    titleInput.value = cardEl.dataset.title || '';
+    subjectInput.value = cardEl.dataset.subject || '';
+    dueDateInput.value = normalizeDateInput(cardEl.dataset.dueDate || '');
+    notesInput.value = cardEl.dataset.notes || '';
+    actionsInput.value = actionsToText(JSON.parse(cardEl.dataset.actions || '[]'));
+    priorityInput.value = cardEl.dataset.priority || 'normal';
+    blockedReasonInput.value = cardEl.dataset.blockedReason || '';
+    blockedUntilInput.value = normalizeDateInput(cardEl.dataset.blockedUntil || '');
+
+    blockedSection.classList.toggle('hidden', !isCardInBlocked);
+
+    modal.classList.remove('hidden');
+    titleInput.focus();
+
+    await new Promise(resolve => {
+        const cleanup = () => {
+            saveBtn.removeEventListener('click', onSave);
+            cancelBtn.removeEventListener('click', onCancel);
+        };
+
+        const close = () => {
+            modal.classList.add('hidden');
+            cleanup();
+            resolve();
+        };
+
+        const onSave = async () => {
+            const title = titleInput.value.trim();
+            if (!title) {
+                showToast('Preencha o titulo do card.');
+                return;
+            }
+
+            const payload = {
+                content: title,
+                subject: subjectInput.value.trim() || null,
+                due_date: normalizeDateInput(dueDateInput.value) || null,
+                notes: notesInput.value.trim() || null,
+                actions: parseActionsFromText(actionsInput.value),
+                priority: priorityInput.value || 'normal',
+                blocked_reason: null,
+                blocked_until: null
+            };
+
+            if (isCardInBlocked) {
+                const blockedReason = blockedReasonInput.value.trim();
+                const blockedUntil = normalizeDateInput(blockedUntilInput.value);
+
+                if (!blockedReason || !blockedUntil) {
+                    showToast('Em Blocked, informe o motivo e a data prevista de conclusao.');
+                    return;
+                }
+
+                payload.blocked_reason = blockedReason;
+                payload.blocked_until = blockedUntil;
+            }
+
+            const success = await updateCard(cardEl.dataset.id, payload);
+            if (success) {
+                close();
+                await loadBoard();
+            }
+        };
+
+        const onCancel = () => {
+            close();
+        };
+
+        saveBtn.addEventListener('click', onSave);
+        cancelBtn.addEventListener('click', onCancel);
+    });
+}
+
+async function updateCard(cardId, payload) {
+    try {
+        const response = await fetch(`${API_URL}/cards/${cardId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error('Failed to update card');
+        return true;
+    } catch (err) {
+        console.error('Error updating card:', err);
+        showToast('Falha ao salvar alteracoes do card.');
+        return false;
     }
 }
 
@@ -477,6 +816,6 @@ async function deleteCard(cardId, element) {
         element.remove();
     } catch (err) {
         console.error('Error deleting card:', err);
-        alert('Falha ao remover card.');
+        showToast('Falha ao remover card.');
     }
 }
