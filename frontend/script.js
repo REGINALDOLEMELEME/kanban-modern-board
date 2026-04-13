@@ -282,12 +282,32 @@ function renderBoard(columnsData) {
         const addForm = columnClone.querySelector('.add-card-form');
         const saveBtn = columnClone.querySelector('.save-card-btn');
         const cancelBtn = columnClone.querySelector('.cancel-card-btn');
+        const toggleCollapseBtn = columnClone.querySelector('.column-toggle-collapse-btn');
         const titleInput = columnClone.querySelector('.new-card-title-input');
         const subjectInput = columnClone.querySelector('.new-card-subject-input');
         const dueDateInput = columnClone.querySelector('.new-card-due-date-input');
         const notesInput = columnClone.querySelector('.new-card-notes-input');
         const actionsInput = columnClone.querySelector('.new-card-actions-input');
         const priorityInput = columnClone.querySelector('.new-card-priority-input');
+
+        toggleCollapseBtn.addEventListener('click', () => {
+            const cards = [...cardList.querySelectorAll('.card')];
+            const allCollapsed = cards.length > 0 && cards.every(card => card.classList.contains('card-collapsed'));
+            const nextCollapsedState = !allCollapsed;
+
+            cards.forEach(card => {
+                setCardCollapsed(card, nextCollapsedState);
+                const cardId = String(card.dataset.id || '');
+                if (nextCollapsedState) {
+                    collapsedCardIds.add(cardId);
+                } else {
+                    collapsedCardIds.delete(cardId);
+                }
+                applyCardVisuals(card);
+            });
+
+            updateColumnCollapseButtonLabel(cardList, toggleCollapseBtn);
+        });
 
         addBtn.addEventListener('click', () => {
             addBtn.classList.add('hidden');
@@ -318,6 +338,7 @@ function renderBoard(columnsData) {
             addForm.classList.add('hidden');
             addBtn.classList.remove('hidden');
             resetAddCardForm(titleInput, subjectInput, dueDateInput, notesInput, actionsInput, priorityInput);
+            updateColumnCollapseButtonLabel(cardList, toggleCollapseBtn);
         });
 
         if (sortedCards.length > 0) {
@@ -332,6 +353,7 @@ function renderBoard(columnsData) {
         }
 
         board.appendChild(columnClone);
+        updateColumnCollapseButtonLabel(cardList, toggleCollapseBtn);
     });
 
     renderDueAlerts(dueTodayCards);
@@ -425,6 +447,16 @@ function buildPriorityLabel(priority) {
     return labels[priority] || 'Normal';
 }
 
+function buildPriorityShortLabel(priority) {
+    const labels = {
+        normal: 'N',
+        ponderado: 'P',
+        urgente: 'U'
+    };
+
+    return labels[priority] || 'N';
+}
+
 function normalizeActions(actions) {
     if (!Array.isArray(actions)) return [];
 
@@ -467,6 +499,7 @@ function applyCardVisuals(cardEl) {
     const priorityChipEl = cardEl.querySelector('.priority-chip');
     const progressEl = cardEl.querySelector('.card-progress');
     const actionsListEl = cardEl.querySelector('.card-actions-list');
+    const isCollapsed = cardEl.classList.contains('card-collapsed');
 
     titleEl.textContent = cardEl.dataset.title || '';
 
@@ -499,6 +532,7 @@ function applyCardVisuals(cardEl) {
     if (cardEl.dataset.blockedReason) {
         blockedReasonEl.textContent = `Bloqueio: ${cardEl.dataset.blockedReason}`;
         blockedReasonEl.classList.remove('hidden');
+        blockedChipEl.textContent = isCollapsed ? 'BLOQ' : 'Bloqueado';
         blockedChipEl.classList.remove('hidden');
         cardEl.classList.add('card-blocked');
     } else {
@@ -517,7 +551,7 @@ function applyCardVisuals(cardEl) {
     }
 
     const priority = cardEl.dataset.priority || 'normal';
-    priorityChipEl.textContent = buildPriorityLabel(priority);
+    priorityChipEl.textContent = isCollapsed ? buildPriorityShortLabel(priority) : buildPriorityLabel(priority);
     priorityChipEl.className = 'priority-chip';
     priorityChipEl.classList.add(`priority-chip-${priority}`);
 
@@ -531,7 +565,7 @@ function createCardElement(cardData, template, fallbackColumnId) {
 
     setCardDataset(cardEl, cardData, fallbackColumnId);
     if (collapsedCardIds.has(String(cardData.id))) {
-        cardEl.classList.add('card-collapsed');
+        setCardCollapsed(cardEl, true);
     }
     applyCardVisuals(cardEl);
 
@@ -571,13 +605,38 @@ function createCardElement(cardData, template, fallbackColumnId) {
 
 function toggleCardCollapsed(cardEl) {
     const cardId = String(cardEl.dataset.id || '');
-    const isCollapsed = cardEl.classList.toggle('card-collapsed');
+    const isCollapsed = !cardEl.classList.contains('card-collapsed');
+    setCardCollapsed(cardEl, isCollapsed);
 
     if (isCollapsed) {
         collapsedCardIds.add(cardId);
     } else {
         collapsedCardIds.delete(cardId);
     }
+
+    applyCardVisuals(cardEl);
+
+    const columnEl = cardEl.closest('.column');
+    if (columnEl) {
+        const list = columnEl.querySelector('.card-list');
+        const btn = columnEl.querySelector('.column-toggle-collapse-btn');
+        if (list && btn) {
+            updateColumnCollapseButtonLabel(list, btn);
+        }
+    }
+}
+
+function setCardCollapsed(cardEl, collapsed) {
+    cardEl.classList.toggle('card-collapsed', collapsed);
+}
+
+function updateColumnCollapseButtonLabel(cardList, buttonEl) {
+    const cards = [...cardList.querySelectorAll('.card')];
+    const hasCards = cards.length > 0;
+    const allCollapsed = hasCards && cards.every(card => card.classList.contains('card-collapsed'));
+
+    buttonEl.disabled = !hasCards;
+    buttonEl.textContent = allCollapsed ? 'Reexibir' : 'Colapsar tudo';
 }
 
 function renderActions(actions, actionsListEl, progressEl, cardId, cardEl) {

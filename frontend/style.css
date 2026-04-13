@@ -169,12 +169,37 @@ body {
 
 .column-header {
     padding: 4px 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
 }
 
 .column-title {
     font-family: var(--font-display);
     font-size: 16px;
     font-weight: 700;
+}
+
+.column-toggle-collapse-btn {
+    border: 1px solid #c7d8e3;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #35556a;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.column-toggle-collapse-btn:hover {
+    background: #f3f8fc;
+}
+
+.column-toggle-collapse-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
 }
 
 .card-list {
@@ -396,7 +421,6 @@ body {
     color: var(--danger);
 }
 
-.card.card-collapsed .card-subject,
 .card.card-collapsed .card-deadline,
 .card.card-collapsed .card-blocked-reason,
 .card.card-collapsed .card-blocked-until,
@@ -404,6 +428,24 @@ body {
 .card.card-collapsed .card-actions-list,
 .card.card-collapsed .card-notes {
     display: none !important;
+}
+
+.card.card-collapsed .card-topline {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.card.card-collapsed .card-chip-row {
+    gap: 4px;
+}
+
+.card.card-collapsed .priority-chip,
+.card.card-collapsed .blocked-chip {
+    font-size: 10px;
+    padding: 2px 6px;
+    letter-spacing: 0.02em;
 }
 
 .add-card-container {
