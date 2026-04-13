@@ -65,6 +65,8 @@
                     <div class="card-chip-row">
                         <span class="blocked-chip hidden">Bloqueado</span>
                         <span class="priority-chip"></span>
+                        <button class="comment-indicator-btn hidden" type="button" aria-label="Ver comentarios">💬 <span class="comment-count">0</span></button>
+                        <div class="comment-tooltip hidden"></div>
                     </div>
                 </div>
                 <p class="card-subject hidden"></p>
@@ -75,6 +77,7 @@
                 <div class="card-actions-list"></div>
                 <p class="card-notes hidden"></p>
             </div>
+            <button class="comment-card-btn" aria-label="Comentar card">💬</button>
             <button class="edit-card-btn" aria-label="Editar card">✎</button>
             <button class="delete-card-btn" aria-label="Remover card">&times;</button>
         </article>
@@ -123,6 +126,20 @@
             <div class="blocked-modal-actions">
                 <button id="edit-card-save-btn" class="save-card-btn">Salvar alterações</button>
                 <button id="edit-card-cancel-btn" class="cancel-card-btn" aria-label="Cancelar">X</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="comments-modal" class="blocked-modal hidden" role="dialog" aria-modal="true" aria-labelledby="comments-modal-title">
+        <div class="blocked-modal-panel">
+            <h3 id="comments-modal-title">Comentarios do card</h3>
+            <p id="comments-modal-card-title" class="blocked-modal-hint"></p>
+            <div id="comments-list" class="comments-list"></div>
+            <label class="new-card-priority-label" for="new-comment-input">Novo comentario</label>
+            <textarea id="new-comment-input" class="blocked-modal-input" placeholder="Digite seu comentario"></textarea>
+            <div class="blocked-modal-actions">
+                <button id="comments-save-btn" class="save-card-btn">Salvar comentario</button>
+                <button id="comments-cancel-btn" class="cancel-card-btn" aria-label="Fechar">X</button>
             </div>
         </div>
     </div>

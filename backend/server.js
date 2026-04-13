@@ -77,6 +77,7 @@ async function initDB() {
         // Keep schema compatible with older DBs.
         await ensureColumnExists('cards', 'subject', 'VARCHAR(255) NULL');
         await ensureColumnExists('cards', 'notes', 'TEXT NULL');
+        await ensureColumnExists('cards', 'comments', 'JSON NULL');
         await ensureColumnExists('cards', 'due_date', 'DATE NULL');
         await ensureColumnExists('cards', 'actions', 'JSON NULL');
         await ensureColumnExists('cards', 'priority', "ENUM('normal', 'ponderado', 'urgente') NOT NULL DEFAULT 'normal'");
@@ -160,6 +161,42 @@ function parseCardActionsFromDB(actionsValue) {
     }
 }
 
+function parseComments(commentsInput) {
+    if (!Array.isArray(commentsInput)) return [];
+
+    return commentsInput
+        .map(comment => {
+            if (typeof comment === 'string') {
+                const text = comment.trim();
+                return text ? { text, created_at: null } : null;
+            }
+
+            if (comment && typeof comment.text === 'string') {
+                const text = comment.text.trim();
+                if (!text) return null;
+                return {
+                    text,
+                    created_at: comment.created_at ? String(comment.created_at) : null
+                };
+            }
+
+            return null;
+        })
+        .filter(Boolean);
+}
+
+function parseCardCommentsFromDB(commentsValue) {
+    if (Array.isArray(commentsValue)) return parseComments(commentsValue);
+    if (typeof commentsValue !== 'string') return [];
+
+    try {
+        const parsed = JSON.parse(commentsValue);
+        return parseComments(parsed);
+    } catch {
+        return [];
+    }
+}
+
 // Routes
 app.get('/api/board-name', async (req, res) => {
     try {
@@ -206,7 +243,8 @@ app.get('/api/board', async (req, res) => {
                 .filter(card => card.column_id === col.id)
                 .map(card => ({
                     ...card,
-                    actions: parseCardActionsFromDB(card.actions)
+                    actions: parseCardActionsFromDB(card.actions),
+                    comments: parseCardCommentsFromDB(card.comments)
                 }))
         }));
 
@@ -219,10 +257,11 @@ app.get('/api/board', async (req, res) => {
 
 // 2. Create a new card
 app.post('/api/cards', async (req, res) => {
-    const { column_id, content, subject, notes, due_date, actions, priority, blocked_reason, blocked_until } = req.body;
+    const { column_id, content, subject, notes, comments, due_date, actions, priority, blocked_reason, blocked_until } = req.body;
     if (!column_id || !content) return res.status(400).json({ error: 'Missing column_id or content' });
 
     const sanitizedActions = parseActions(actions);
+    const sanitizedComments = parseComments(comments);
     const sanitizedPriority = sanitizePriority(priority);
     const sanitizedDueDate = sanitizeDueDate(due_date);
     const sanitizedBlockedReason = sanitizeBlockedText(blocked_reason);
@@ -234,8 +273,8 @@ app.post('/api/cards', async (req, res) => {
         const orderIndex = (orderRows[0].max_order || 0) + 1;
 
         const [result] = await pool.query(
-            'INSERT INTO cards (column_id, content, subject, notes, due_date, actions, priority, blocked_reason, blocked_until, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [column_id, content, subject || null, notes ? String(notes).trim() : null, sanitizedDueDate, JSON.stringify(sanitizedActions), sanitizedPriority, sanitizedBlockedReason, sanitizedBlockedUntil, orderIndex]
+            'INSERT INTO cards (column_id, content, subject, notes, comments, due_date, actions, priority, blocked_reason, blocked_until, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [column_id, content, subject || null, notes ? String(notes).trim() : null, JSON.stringify(sanitizedComments), sanitizedDueDate, JSON.stringify(sanitizedActions), sanitizedPriority, sanitizedBlockedReason, sanitizedBlockedUntil, orderIndex]
         );
 
         res.status(201).json({
@@ -244,6 +283,7 @@ app.post('/api/cards', async (req, res) => {
             content,
             subject: subject || null,
             notes: notes ? String(notes).trim() : null,
+            comments: sanitizedComments,
             due_date: sanitizedDueDate,
             actions: sanitizedActions,
             priority: sanitizedPriority,
@@ -369,6 +409,20 @@ app.put('/api/cards/:id/actions', async (req, res) => {
     try {
         await pool.query('UPDATE cards SET actions = ? WHERE id = ?', [JSON.stringify(sanitizedActions), cardId]);
         res.json({ success: true, actions: sanitizedActions });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.put('/api/cards/:id/comments', async (req, res) => {
+    const cardId = req.params.id;
+    const { comments } = req.body;
+    const sanitizedComments = parseComments(comments);
+
+    try {
+        await pool.query('UPDATE cards SET comments = ? WHERE id = ?', [JSON.stringify(sanitizedComments), cardId]);
+        res.json({ success: true, comments: sanitizedComments });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Internal server error' });

@@ -475,6 +475,39 @@ function normalizeActions(actions) {
         .filter(Boolean);
 }
 
+function normalizeComments(comments) {
+    if (!Array.isArray(comments)) return [];
+
+    return comments
+        .map(comment => {
+            if (typeof comment === 'string') {
+                const text = comment.trim();
+                return text ? { text, created_at: null } : null;
+            }
+
+            if (comment && typeof comment.text === 'string') {
+                const text = comment.text.trim();
+                if (!text) return null;
+                return {
+                    text,
+                    created_at: comment.created_at ? String(comment.created_at) : null
+                };
+            }
+
+            return null;
+        })
+        .filter(Boolean);
+}
+
+function formatDateTimeBR(dateTimeValue) {
+    if (!dateTimeValue) return '';
+
+    const date = new Date(dateTimeValue);
+    if (Number.isNaN(date.getTime())) return '';
+
+    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
 function setCardDataset(cardEl, cardData, fallbackColumnId) {
     cardEl.dataset.id = cardData.id;
     cardEl.dataset.columnId = String(cardData.column_id || fallbackColumnId || '');
@@ -486,6 +519,7 @@ function setCardDataset(cardEl, cardData, fallbackColumnId) {
     cardEl.dataset.blockedReason = cardData.blocked_reason || '';
     cardEl.dataset.blockedUntil = normalizeDateInput(cardData.blocked_until);
     cardEl.dataset.actions = JSON.stringify(normalizeActions(cardData.actions));
+    cardEl.dataset.comments = JSON.stringify(normalizeComments(cardData.comments));
 }
 
 function applyCardVisuals(cardEl) {
@@ -497,9 +531,13 @@ function applyCardVisuals(cardEl) {
     const blockedUntilEl = cardEl.querySelector('.card-blocked-until');
     const blockedChipEl = cardEl.querySelector('.blocked-chip');
     const priorityChipEl = cardEl.querySelector('.priority-chip');
+    const commentIndicatorEl = cardEl.querySelector('.comment-indicator-btn');
+    const commentCountEl = cardEl.querySelector('.comment-count');
+    const commentTooltipEl = cardEl.querySelector('.comment-tooltip');
     const progressEl = cardEl.querySelector('.card-progress');
     const actionsListEl = cardEl.querySelector('.card-actions-list');
     const isCollapsed = cardEl.classList.contains('card-collapsed');
+    const comments = normalizeComments(JSON.parse(cardEl.dataset.comments || '[]'));
 
     titleEl.textContent = cardEl.dataset.title || '';
 
@@ -555,6 +593,24 @@ function applyCardVisuals(cardEl) {
     priorityChipEl.className = 'priority-chip';
     priorityChipEl.classList.add(`priority-chip-${priority}`);
 
+    if (comments.length > 0) {
+        commentCountEl.textContent = String(comments.length);
+        commentIndicatorEl.classList.remove('hidden');
+        commentTooltipEl.innerHTML = comments
+            .map(comment => {
+                const timestamp = formatDateTimeBR(comment.created_at);
+                const header = timestamp ? `${escapeHtml(timestamp)} - ` : '';
+                return `<p class="comment-tooltip-item">${header}${escapeHtml(comment.text)}</p>`;
+            })
+            .join('');
+        commentTooltipEl.classList.remove('hidden');
+    } else {
+        commentCountEl.textContent = '0';
+        commentIndicatorEl.classList.add('hidden');
+        commentTooltipEl.classList.add('hidden');
+        commentTooltipEl.innerHTML = '';
+    }
+
     renderActions(JSON.parse(cardEl.dataset.actions || '[]'), actionsListEl, progressEl, cardEl.dataset.id, cardEl);
 }
 
@@ -576,11 +632,27 @@ function createCardElement(cardData, template, fallbackColumnId) {
     });
 
     cardMain.addEventListener('click', event => {
-        if (event.target.tagName === 'INPUT' || event.target.closest('.card-action-item')) {
+        if (
+            event.target.tagName === 'INPUT' ||
+            event.target.closest('.card-action-item') ||
+            event.target.closest('.comment-indicator-btn')
+        ) {
             return;
         }
 
         toggleCardCollapsed(cardEl);
+    });
+
+    const commentIndicatorBtn = clone.querySelector('.comment-indicator-btn');
+    commentIndicatorBtn.addEventListener('click', async event => {
+        event.stopPropagation();
+        await openCommentsModal(cardEl);
+    });
+
+    const commentBtn = clone.querySelector('.comment-card-btn');
+    commentBtn.addEventListener('click', async event => {
+        event.stopPropagation();
+        await openCommentsModal(cardEl);
     });
 
     cardEl.addEventListener('dragstart', handleDragStart);
@@ -876,6 +948,7 @@ async function addCard(columnId, cardData, container, template) {
             due_date: cardData.dueDate || null,
             notes: cardData.notes || null,
             actions: cardData.actions || [],
+            comments: [],
             priority: cardData.priority || 'normal',
             blocked_reason: null,
             blocked_until: null
@@ -912,6 +985,101 @@ async function updateCardActions(cardId, actions) {
         console.error('Error updating card actions:', err);
         showToast('Falha ao salvar estado dos checkboxes.');
     }
+}
+
+async function updateCardComments(cardId, comments) {
+    try {
+        const response = await fetch(`${API_URL}/cards/${cardId}/comments`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ comments })
+        });
+
+        if (!response.ok) throw new Error('Failed to update card comments');
+
+        const data = await response.json();
+        return normalizeComments(data.comments || comments);
+    } catch (err) {
+        console.error('Error updating card comments:', err);
+        showToast('Falha ao salvar comentarios.');
+        return null;
+    }
+}
+
+async function openCommentsModal(cardEl) {
+    const modal = document.getElementById('comments-modal');
+    const titleEl = document.getElementById('comments-modal-card-title');
+    const listEl = document.getElementById('comments-list');
+    const inputEl = document.getElementById('new-comment-input');
+    const saveBtn = document.getElementById('comments-save-btn');
+    const cancelBtn = document.getElementById('comments-cancel-btn');
+
+    const existingComments = normalizeComments(JSON.parse(cardEl.dataset.comments || '[]'));
+    titleEl.textContent = `Card: ${cardEl.dataset.title || ''}`;
+    inputEl.value = '';
+
+    const renderComments = comments => {
+        if (!comments.length) {
+            listEl.innerHTML = '<p class="comments-empty">Sem comentarios ainda.</p>';
+            return;
+        }
+
+        listEl.innerHTML = comments
+            .map(comment => {
+                const timestamp = formatDateTimeBR(comment.created_at);
+                return `
+                    <div class="comment-item">
+                        <p class="comment-item-text">${escapeHtml(comment.text)}</p>
+                        ${timestamp ? `<p class="comment-item-date">${escapeHtml(timestamp)}</p>` : ''}
+                    </div>
+                `;
+            })
+            .join('');
+    };
+
+    renderComments(existingComments);
+    modal.classList.remove('hidden');
+    inputEl.focus();
+
+    await new Promise(resolve => {
+        const cleanup = () => {
+            saveBtn.removeEventListener('click', onSave);
+            cancelBtn.removeEventListener('click', onCancel);
+        };
+
+        const close = () => {
+            modal.classList.add('hidden');
+            cleanup();
+            resolve();
+        };
+
+        const onSave = async () => {
+            const newCommentText = inputEl.value.trim();
+            if (!newCommentText) {
+                showToast('Digite um comentario antes de salvar.');
+                return;
+            }
+
+            const nextComments = [
+                ...existingComments,
+                { text: newCommentText, created_at: new Date().toISOString() }
+            ];
+
+            const savedComments = await updateCardComments(cardEl.dataset.id, nextComments);
+            if (!savedComments) return;
+
+            cardEl.dataset.comments = JSON.stringify(savedComments);
+            applyCardVisuals(cardEl);
+            close();
+        };
+
+        const onCancel = () => {
+            close();
+        };
+
+        saveBtn.addEventListener('click', onSave);
+        cancelBtn.addEventListener('click', onCancel);
+    });
 }
 
 async function openEditCardModal(cardEl) {
