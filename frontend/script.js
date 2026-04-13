@@ -738,6 +738,12 @@ function createCardElement(cardData, template, fallbackColumnId) {
         await archiveCard(cardEl);
     });
 
+    const duplicateBtn = clone.querySelector('.duplicate-card-btn');
+    duplicateBtn.addEventListener('click', async event => {
+        event.stopPropagation();
+        await duplicateCard(cardEl);
+    });
+
     cardEl.addEventListener('dragstart', handleDragStart);
     cardEl.addEventListener('dragend', handleDragEnd);
 
@@ -1388,6 +1394,40 @@ async function updateCard(cardId, payload) {
         console.error('Error updating card:', err);
         showToast('Falha ao salvar alteracoes do card.');
         return false;
+    }
+}
+
+async function duplicateCard(cardEl) {
+    try {
+        const payload = {
+            column_id: Number(cardEl.dataset.columnId || cardEl.closest('.column')?.dataset.id),
+            content: String(cardEl.dataset.title || '').trim(),
+            subject: String(cardEl.dataset.subject || '').trim() || null,
+            notes: String(cardEl.dataset.notes || '').trim() || null,
+            due_date: normalizeDateInput(cardEl.dataset.dueDate) || null,
+            actions: normalizeActions(JSON.parse(cardEl.dataset.actions || '[]')),
+            comments: normalizeComments(JSON.parse(cardEl.dataset.comments || '[]')),
+            priority: cardEl.dataset.priority || 'normal',
+            blocked_reason: String(cardEl.dataset.blockedReason || '').trim() || null,
+            blocked_until: normalizeDateInput(cardEl.dataset.blockedUntil) || null
+        };
+
+        if (!payload.column_id || !payload.content) {
+            showToast('Nao foi possivel copiar o card.');
+            return;
+        }
+
+        const response = await fetch(`${API_URL}/cards`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error('Failed to duplicate card');
+        await loadBoard();
+    } catch (err) {
+        console.error('Error duplicating card:', err);
+        showToast('Falha ao copiar card.');
     }
 }
 

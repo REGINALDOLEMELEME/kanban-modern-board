@@ -235,6 +235,10 @@ body {
     transition: transform 120ms ease, box-shadow 120ms ease;
 }
 
+.card:not(.card-collapsed) {
+    padding-bottom: 42px;
+}
+
 .card:hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 24px rgba(16, 42, 67, 0.12);
@@ -267,7 +271,7 @@ body {
     gap: 6px;
     position: static;
     width: 100%;
-    padding-right: 118px;
+    padding-right: 146px;
     order: 1;
 }
 
@@ -389,8 +393,9 @@ body {
 
 .comment-card-btn {
     position: absolute;
-    top: 8px;
-    right: 92px;
+    top: auto;
+    bottom: 8px;
+    right: 120px;
     width: 24px;
     height: 24px;
     border-radius: 8px;
@@ -405,7 +410,25 @@ body {
 
 .archive-card-btn {
     position: absolute;
-    top: 8px;
+    top: auto;
+    bottom: 8px;
+    right: 92px;
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    background: transparent;
+    border: none;
+    color: var(--ink-soft);
+    cursor: pointer;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.duplicate-card-btn {
+    position: absolute;
+    top: auto;
+    bottom: 8px;
     right: 64px;
     width: 24px;
     height: 24px;
@@ -421,7 +444,8 @@ body {
 
 .delete-card-btn {
     position: absolute;
-    top: 8px;
+    top: auto;
+    bottom: 8px;
     right: 8px;
     width: 24px;
     height: 24px;
@@ -437,7 +461,8 @@ body {
 
 .edit-card-btn {
     position: absolute;
-    top: 8px;
+    top: auto;
+    bottom: 8px;
     right: 36px;
     width: 24px;
     height: 24px;
@@ -508,6 +533,7 @@ body {
 
 .card:hover .comment-card-btn,
 .card:hover .archive-card-btn,
+.card:hover .duplicate-card-btn,
 .card:hover .edit-card-btn,
 .card:hover .delete-card-btn {
     opacity: 1;
@@ -521,6 +547,11 @@ body {
 .archive-card-btn:hover {
     background: #ecf8ee;
     color: #2d6a3f;
+}
+
+.duplicate-card-btn:hover {
+    background: #eef5fb;
+    color: #2a5f88;
 }
 
 .edit-card-btn:hover {
@@ -549,6 +580,35 @@ body {
 
 .card.card-collapsed .card-chip-row {
     gap: 4px;
+}
+
+.card.card-collapsed .comment-card-btn,
+.card.card-collapsed .archive-card-btn,
+.card.card-collapsed .duplicate-card-btn,
+.card.card-collapsed .edit-card-btn,
+.card.card-collapsed .delete-card-btn {
+    top: 8px;
+    bottom: auto;
+}
+
+.card.card-collapsed .comment-card-btn {
+    right: 120px;
+}
+
+.card.card-collapsed .archive-card-btn {
+    right: 92px;
+}
+
+.card.card-collapsed .duplicate-card-btn {
+    right: 64px;
+}
+
+.card.card-collapsed .edit-card-btn {
+    right: 36px;
+}
+
+.card.card-collapsed .delete-card-btn {
+    right: 8px;
 }
 
 .card.card-collapsed .priority-chip,
@@ -583,6 +643,9 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    position: relative;
+    padding-top: 38px;
+    padding-right: 42px;
 }
 
 .hidden,
@@ -664,6 +727,20 @@ body {
     color: var(--ink);
 }
 
+.add-card-form .cancel-card-btn {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    border-color: #f3c7c7;
+    background: #fff5f5;
+    color: #b42323;
+}
+
+.add-card-form .cancel-card-btn:hover {
+    background: #ffe6e6;
+    color: #8f1616;
+}
+
 .blocked-modal {
     position: fixed;
     inset: 0;
@@ -688,6 +765,7 @@ body {
     border: 1px solid #d4e1e9;
     box-shadow: 0 16px 40px rgba(16, 42, 67, 0.2);
     padding: 16px;
+    position: relative;
 }
 
 .blocked-modal-panel h3 {
@@ -722,6 +800,20 @@ body {
     align-items: center;
     gap: 8px;
     margin-top: 6px;
+}
+
+#edit-card-cancel-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    border-color: #f3c7c7;
+    background: #fff5f5;
+    color: #b42323;
+}
+
+#edit-card-cancel-btn:hover {
+    background: #ffe6e6;
+    color: #8f1616;
 }
 
 .comments-list {
