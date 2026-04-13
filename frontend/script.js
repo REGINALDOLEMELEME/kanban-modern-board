@@ -76,7 +76,9 @@ async function exportBoardToPDF() {
         const generatedAtText = `${String(generatedAt.getDate()).padStart(2, '0')}/${String(generatedAt.getMonth() + 1).padStart(2, '0')}/${generatedAt.getFullYear()} ${String(generatedAt.getHours()).padStart(2, '0')}:${String(generatedAt.getMinutes()).padStart(2, '0')}`;
 
         const content = columns.map(column => {
-            const cards = Array.isArray(column.cards) ? column.cards : [];
+            const cards = Array.isArray(column.cards)
+                ? [...column.cards].sort((a, b) => getPriorityRank(a.priority) - getPriorityRank(b.priority))
+                : [];
             const cardsHtml = cards.length
                 ? cards.map(card => {
                     const actions = normalizeActions(card.actions || []);
@@ -231,6 +233,16 @@ function isBlockedColumnTitle(title) {
     return normalizeColumnTitle(title) === 'blocked';
 }
 
+function getPriorityRank(priority) {
+    const priorityOrder = {
+        urgente: 0,
+        ponderado: 1,
+        normal: 2
+    };
+
+    return priorityOrder[priority] ?? 2;
+}
+
 function renderBoard(columnsData) {
     const board = document.getElementById('board');
     board.innerHTML = '';
@@ -254,8 +266,12 @@ function renderBoard(columnsData) {
         cardList.addEventListener('dragover', handleDragOver);
         cardList.addEventListener('drop', handleDrop);
 
-        if (columnData.cards && columnData.cards.length > 0) {
-            columnData.cards.forEach(cardData => {
+        const sortedCards = Array.isArray(columnData.cards)
+            ? [...columnData.cards].sort((a, b) => getPriorityRank(a.priority) - getPriorityRank(b.priority))
+            : [];
+
+        if (sortedCards.length > 0) {
+            sortedCards.forEach(cardData => {
                 const cardEl = createCardElement(cardData, cardTemplate, columnData.id);
                 cardList.appendChild(cardEl);
             });
@@ -303,8 +319,8 @@ function renderBoard(columnsData) {
             resetAddCardForm(titleInput, subjectInput, dueDateInput, notesInput, actionsInput, priorityInput);
         });
 
-        if (columnData.cards && columnData.cards.length > 0) {
-            columnData.cards.forEach(cardData => {
+        if (sortedCards.length > 0) {
+            sortedCards.forEach(cardData => {
                 if (isDueToday(cardData.due_date)) {
                     dueTodayCards.push({
                         title: cardData.content,
