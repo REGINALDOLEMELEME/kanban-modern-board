@@ -31,6 +31,7 @@ function showToast(message, type = 'error') {
 document.addEventListener('DOMContentLoaded', () => {
     setupBoardNameEditor();
     setupPdfExport();
+    setupArchivedMenu();
     loadBoardName();
     loadBoard();
 });
@@ -56,6 +57,23 @@ function setupPdfExport() {
 
     exportButton.addEventListener('click', async () => {
         await exportBoardToPDF();
+    });
+}
+
+function setupArchivedMenu() {
+    const archivedMenuBtn = document.getElementById('archived-menu-btn');
+    const archivedCloseBtn = document.getElementById('archived-close-btn');
+    const archivedModal = document.getElementById('archived-modal');
+
+    if (!archivedMenuBtn || !archivedCloseBtn || !archivedModal) return;
+
+    archivedMenuBtn.addEventListener('click', async () => {
+        archivedModal.classList.remove('hidden');
+        await loadArchivedCards();
+    });
+
+    archivedCloseBtn.addEventListener('click', () => {
+        archivedModal.classList.add('hidden');
     });
 }
 
@@ -232,6 +250,11 @@ function normalizeColumnTitle(title) {
 
 function isBlockedColumnTitle(title) {
     return normalizeColumnTitle(title) === 'blocked';
+}
+
+function isDoneColumnElement(columnEl) {
+    const title = columnEl?.querySelector('.column-title')?.textContent || '';
+    return normalizeColumnTitle(title) === 'done';
 }
 
 function getPriorityRank(priority) {
@@ -531,6 +554,7 @@ function applyCardVisuals(cardEl) {
     const blockedUntilEl = cardEl.querySelector('.card-blocked-until');
     const blockedChipEl = cardEl.querySelector('.blocked-chip');
     const priorityChipEl = cardEl.querySelector('.priority-chip');
+    const archiveBtn = cardEl.querySelector('.archive-card-btn');
     const commentIndicatorEl = cardEl.querySelector('.comment-indicator-btn');
     const commentCountEl = cardEl.querySelector('.comment-count');
     const commentTooltipEl = cardEl.querySelector('.comment-tooltip');
@@ -612,6 +636,9 @@ function applyCardVisuals(cardEl) {
     }
 
     renderActions(JSON.parse(cardEl.dataset.actions || '[]'), actionsListEl, progressEl, cardEl.dataset.id, cardEl);
+
+    const inDoneColumn = isDoneColumnElement(cardEl.closest('.column'));
+    archiveBtn.classList.toggle('hidden', !inDoneColumn);
 }
 
 function createCardElement(cardData, template, fallbackColumnId) {
@@ -653,6 +680,12 @@ function createCardElement(cardData, template, fallbackColumnId) {
     commentBtn.addEventListener('click', async event => {
         event.stopPropagation();
         await openCommentsModal(cardEl);
+    });
+
+    const archiveBtn = clone.querySelector('.archive-card-btn');
+    archiveBtn.addEventListener('click', async event => {
+        event.stopPropagation();
+        await archiveCard(cardEl);
     });
 
     cardEl.addEventListener('dragstart', handleDragStart);
@@ -1003,6 +1036,99 @@ async function updateCardComments(cardId, comments) {
         console.error('Error updating card comments:', err);
         showToast('Falha ao salvar comentarios.');
         return null;
+    }
+}
+
+async function archiveCard(cardEl) {
+    const inDoneColumn = isDoneColumnElement(cardEl.closest('.column'));
+    if (!inDoneColumn) {
+        showToast('Arquivamento permitido somente na coluna Done.');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/cards/${cardEl.dataset.id}/archive`, {
+            method: 'PUT'
+        });
+
+        if (!response.ok) {
+            let backendMessage = 'Falha ao arquivar card.';
+            try {
+                const body = await response.json();
+                if (body?.error) backendMessage = body.error;
+            } catch {
+                // keep default
+            }
+            throw new Error(backendMessage);
+        }
+
+        await loadBoard();
+    } catch (err) {
+        console.error('Error archiving card:', err);
+        showToast(err.message || 'Falha ao arquivar card.');
+    }
+}
+
+async function loadArchivedCards() {
+    const listEl = document.getElementById('archived-list');
+    if (!listEl) return;
+
+    try {
+        const response = await fetch(`${API_URL}/cards/archived`);
+        if (!response.ok) throw new Error('Failed to load archived cards');
+
+        const cards = await response.json();
+        if (!Array.isArray(cards) || cards.length === 0) {
+            listEl.innerHTML = '<p class="archived-empty">Nenhum card arquivado.</p>';
+            return;
+        }
+
+        listEl.innerHTML = cards
+            .map(card => {
+                const archivedAt = formatDateTimeBR(card.archived_at);
+                const subjectText = card.subject ? `<p class="archived-item-subject">${escapeHtml(card.subject)}</p>` : '';
+                const archivedAtText = archivedAt ? `<p class="archived-item-date">Arquivado em ${escapeHtml(archivedAt)}</p>` : '';
+
+                return `
+                    <div class="archived-item" data-card-id="${card.id}">
+                        <div class="archived-item-main">
+                            <p class="archived-item-title">${escapeHtml(card.content || '')}</p>
+                            ${subjectText}
+                            ${archivedAtText}
+                        </div>
+                        <button class="archived-unarchive-btn" type="button" data-card-id="${card.id}">Desarquivar</button>
+                    </div>
+                `;
+            })
+            .join('');
+
+        listEl.querySelectorAll('.archived-unarchive-btn').forEach(button => {
+            button.addEventListener('click', async () => {
+                const cardId = button.dataset.cardId;
+                await unarchiveCard(cardId);
+            });
+        });
+    } catch (err) {
+        console.error('Error loading archived cards:', err);
+        listEl.innerHTML = '<p class="archived-empty">Falha ao carregar cards arquivados.</p>';
+    }
+}
+
+async function unarchiveCard(cardId) {
+    try {
+        const response = await fetch(`${API_URL}/cards/${cardId}/unarchive`, {
+            method: 'PUT'
+        });
+
+        if (!response.ok) throw new Error('Failed to unarchive card');
+
+        await Promise.all([
+            loadArchivedCards(),
+            loadBoard()
+        ]);
+    } catch (err) {
+        console.error('Error unarchiving card:', err);
+        showToast('Falha ao desarquivar card.');
     }
 }
 

@@ -252,7 +252,7 @@ body {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
-    padding-right: 86px;
+    padding-right: 118px;
 }
 
 .card-chip-row {
@@ -379,6 +379,22 @@ body {
 .comment-card-btn {
     position: absolute;
     top: 8px;
+    right: 92px;
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    background: transparent;
+    border: none;
+    color: var(--ink-soft);
+    cursor: pointer;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.archive-card-btn {
+    position: absolute;
+    top: 8px;
     right: 64px;
     width: 24px;
     height: 24px;
@@ -474,6 +490,7 @@ body {
 }
 
 .card:hover .comment-card-btn,
+.card:hover .archive-card-btn,
 .card:hover .edit-card-btn,
 .card:hover .delete-card-btn {
     opacity: 1;
@@ -482,6 +499,11 @@ body {
 .comment-card-btn:hover {
     background: #eef5fb;
     color: #2a5f88;
+}
+
+.archive-card-btn:hover {
+    background: #ecf8ee;
+    color: #2d6a3f;
 }
 
 .edit-card-btn:hover {
@@ -734,6 +756,71 @@ body {
     font-weight: 700;
 }
 
+.archived-list {
+    border: 1px solid #d9e6ef;
+    border-radius: 10px;
+    background: #f8fbfd;
+    padding: 10px;
+    margin-bottom: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.archived-empty {
+    color: var(--ink-soft);
+    font-size: 13px;
+}
+
+.archived-item {
+    border: 1px solid #deebf3;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 10px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.archived-item:last-child {
+    margin-bottom: 0;
+}
+
+.archived-item-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: #17384f;
+}
+
+.archived-item-subject {
+    font-size: 12px;
+    font-weight: 600;
+    color: #5b7286;
+    margin-top: 2px;
+}
+
+.archived-item-date {
+    font-size: 11px;
+    color: #6d8395;
+    margin-top: 3px;
+}
+
+.archived-unarchive-btn {
+    border: 1px solid #c5dfca;
+    background: #eaf8ed;
+    color: #1f6a33;
+    border-radius: 9px;
+    padding: 6px 10px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.archived-unarchive-btn:hover {
+    background: #ddf3e3;
+}
+
 .comment-delete-btn {
     border: 1px solid #f3c7c7;
     background: #fff5f5;
@@ -833,6 +920,7 @@ body {
     .due-alerts,
     .add-card-container,
     .comment-card-btn,
+    .archive-card-btn,
     .comment-indicator-btn,
     .delete-card-btn {
         display: none !important;

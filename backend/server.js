@@ -83,6 +83,8 @@ async function initDB() {
         await ensureColumnExists('cards', 'priority', "ENUM('normal', 'ponderado', 'urgente') NOT NULL DEFAULT 'normal'");
         await ensureColumnExists('cards', 'blocked_reason', 'TEXT NULL');
         await ensureColumnExists('cards', 'blocked_until', 'DATE NULL');
+        await ensureColumnExists('cards', 'archived', 'TINYINT(1) NOT NULL DEFAULT 0');
+        await ensureColumnExists('cards', 'archived_at', 'DATETIME NULL');
 
         // Insert default columns if they don't exist
         const [rows] = await pool.query('SELECT COUNT(*) as count FROM columns');
@@ -126,6 +128,10 @@ function sanitizeBlockedText(blockedReasonInput) {
 
 function isBlockedColumnTitle(title) {
     return String(title || '').trim().toLowerCase() === 'blocked';
+}
+
+function isDoneColumnTitle(title) {
+    return String(title || '').trim().toLowerCase() === 'done';
 }
 
 function parseActions(actionsInput) {
@@ -234,7 +240,7 @@ app.put('/api/board-name', async (req, res) => {
 app.get('/api/board', async (req, res) => {
     try {
         const [columns] = await pool.query('SELECT * FROM columns ORDER BY order_index ASC');
-        const [cards] = await pool.query('SELECT * FROM cards ORDER BY order_index ASC');
+        const [cards] = await pool.query('SELECT * FROM cards WHERE archived = 0 ORDER BY order_index ASC');
 
         // Group cards by column
         const boardData = columns.map(col => ({
@@ -273,7 +279,7 @@ app.post('/api/cards', async (req, res) => {
         const orderIndex = (orderRows[0].max_order || 0) + 1;
 
         const [result] = await pool.query(
-            'INSERT INTO cards (column_id, content, subject, notes, comments, due_date, actions, priority, blocked_reason, blocked_until, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO cards (column_id, content, subject, notes, comments, due_date, actions, priority, blocked_reason, blocked_until, archived, archived_at, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)',
             [column_id, content, subject || null, notes ? String(notes).trim() : null, JSON.stringify(sanitizedComments), sanitizedDueDate, JSON.stringify(sanitizedActions), sanitizedPriority, sanitizedBlockedReason, sanitizedBlockedUntil, orderIndex]
         );
 
@@ -423,6 +429,87 @@ app.put('/api/cards/:id/comments', async (req, res) => {
     try {
         await pool.query('UPDATE cards SET comments = ? WHERE id = ?', [JSON.stringify(sanitizedComments), cardId]);
         res.json({ success: true, comments: sanitizedComments });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.put('/api/cards/:id/archive', async (req, res) => {
+    const cardId = req.params.id;
+
+    try {
+        const [rows] = await pool.query(
+            `SELECT cards.id, cards.archived, columns.title AS column_title
+             FROM cards
+             INNER JOIN columns ON cards.column_id = columns.id
+             WHERE cards.id = ?
+             LIMIT 1`,
+            [cardId]
+        );
+
+        if (!rows.length) return res.status(404).json({ error: 'Card not found' });
+
+        const card = rows[0];
+        if (!isDoneColumnTitle(card.column_title)) {
+            return res.status(400).json({ error: 'Card can only be archived from Done column' });
+        }
+
+        if (Number(card.archived) === 1) {
+            return res.json({ success: true });
+        }
+
+        await pool.query('UPDATE cards SET archived = 1, archived_at = NOW() WHERE id = ?', [cardId]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.get('/api/cards/archived', async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT cards.*, columns.title AS column_title
+             FROM cards
+             INNER JOIN columns ON cards.column_id = columns.id
+             WHERE cards.archived = 1
+             ORDER BY cards.archived_at DESC, cards.id DESC`
+        );
+
+        const archivedCards = rows.map(card => ({
+            ...card,
+            actions: parseCardActionsFromDB(card.actions),
+            comments: parseCardCommentsFromDB(card.comments)
+        }));
+
+        res.json(archivedCards);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.put('/api/cards/:id/unarchive', async (req, res) => {
+    const cardId = req.params.id;
+
+    try {
+        const [doneColumnRows] = await pool.query(
+            'SELECT id FROM columns WHERE LOWER(TRIM(title)) = "done" ORDER BY order_index ASC LIMIT 1'
+        );
+
+        if (!doneColumnRows.length) {
+            return res.status(400).json({ error: 'Done column not found' });
+        }
+
+        const doneColumnId = doneColumnRows[0].id;
+
+        await pool.query(
+            'UPDATE cards SET archived = 0, archived_at = NULL, column_id = ? WHERE id = ?',
+            [doneColumnId, cardId]
+        );
+
+        res.json({ success: true, column_id: doneColumnId });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Internal server error' });

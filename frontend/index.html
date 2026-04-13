@@ -15,6 +15,7 @@
             <p class="brand-kicker">Kanban</p>
             <div class="board-name-row">
                 <input id="board-name-input" class="board-name-input" type="text" maxlength="255" aria-label="Nome do quadro" />
+                <button id="archived-menu-btn" class="board-name-btn board-name-btn-secondary">Arquivados</button>
                 <button id="export-pdf-btn" class="board-name-btn board-name-btn-secondary">Exportar PDF</button>
             </div>
             <p class="board-name-hint">Pressione Enter ou clique fora do campo para salvar o nome.</p>
@@ -78,6 +79,7 @@
                 <p class="card-notes hidden"></p>
             </div>
             <button class="comment-card-btn" aria-label="Comentar card">💬</button>
+            <button class="archive-card-btn hidden" aria-label="Arquivar card">🗄</button>
             <button class="edit-card-btn" aria-label="Editar card">✎</button>
             <button class="delete-card-btn" aria-label="Remover card">&times;</button>
         </article>
@@ -140,6 +142,16 @@
             <div class="blocked-modal-actions">
                 <button id="comments-save-btn" class="save-card-btn">Salvar comentario</button>
                 <button id="comments-cancel-btn" class="cancel-card-btn" aria-label="Fechar">X</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="archived-modal" class="blocked-modal hidden" role="dialog" aria-modal="true" aria-labelledby="archived-modal-title">
+        <div class="blocked-modal-panel">
+            <h3 id="archived-modal-title">Cards arquivados</h3>
+            <div id="archived-list" class="archived-list"></div>
+            <div class="blocked-modal-actions">
+                <button id="archived-close-btn" class="cancel-card-btn" aria-label="Fechar">X</button>
             </div>
         </div>
     </div>
