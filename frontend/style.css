@@ -258,13 +258,14 @@ body {
     align-items: flex-start;
     gap: 8px;
     padding-right: 118px;
+    position: relative;
 }
 
 .card-chip-row {
     display: flex;
     align-items: center;
     gap: 6px;
-    position: relative;
+    position: static;
 }
 
 .card-title {
@@ -466,10 +467,15 @@ body {
     display: none;
     position: absolute;
     top: calc(100% + 6px);
+    left: 0;
     right: 0;
-    width: min(300px, 72vw);
-    max-height: 220px;
+    width: auto;
+    max-width: none;
+    margin-top: 0;
+    max-height: 160px;
     overflow-y: auto;
+    overflow-x: hidden;
+    word-break: break-word;
     background: #ffffff;
     border: 1px solid #d7e3ec;
     border-radius: 10px;
@@ -490,6 +496,7 @@ body {
 }
 
 .comment-indicator-btn:hover + .comment-tooltip,
+.comment-indicator-btn:focus + .comment-tooltip,
 .comment-tooltip:hover {
     display: block;
 }
@@ -521,7 +528,6 @@ body {
     color: var(--danger);
 }
 
-.card.card-collapsed .card-deadline,
 .card.card-collapsed .card-blocked-reason,
 .card.card-collapsed .card-blocked-until,
 .card.card-collapsed .card-progress,
