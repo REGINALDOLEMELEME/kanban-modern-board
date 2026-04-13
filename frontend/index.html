@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kanban Moderno</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand-block">
+            <p class="brand-kicker">Kanban</p>
+            <div class="board-name-row">
+                <input id="board-name-input" class="board-name-input" type="text" maxlength="255" aria-label="Nome do quadro" />
+                <button id="save-board-name-btn" class="board-name-btn">Salvar nome</button>
+                <button id="export-pdf-btn" class="board-name-btn board-name-btn-secondary">Exportar PDF</button>
+            </div>
+            <p class="board-name-hint">Pressione Enter para salvar nome ou use "Exportar PDF" para baixar o quadro.</p>
+        </div>
+        <div id="due-alerts" class="due-alerts hidden" aria-live="assertive"></div>
+    </header>
+
+    <main class="board" id="board" aria-live="polite">
+        <!-- Columns will be injected here by JavaScript -->
+    </main>
+
+    <template id="column-template">
+        <section class="column" data-id="">
+            <div class="column-header">
+                <h2 class="column-title"></h2>
+            </div>
+            <div class="card-list"></div>
+            <div class="add-card-container">
+                <button class="add-card-btn">+ Novo card</button>
+                <div class="add-card-form hidden">
+                    <input class="new-card-title-input" type="text" placeholder="Titulo" />
+                    <input class="new-card-subject-input" type="text" placeholder="Assunto" />
+                    <label class="new-card-priority-label">Prazo</label>
+                    <input class="new-card-due-date-input" type="date" />
+                    <textarea class="new-card-actions-input" placeholder="Acoes (uma por linha)"></textarea>
+                    <label class="new-card-priority-label">Prioridade</label>
+                    <select class="new-card-priority-input">
+                        <option value="normal">Normal</option>
+                        <option value="ponderado">Ponderado</option>
+                        <option value="urgente">Urgente</option>
+                    </select>
+                    <div class="add-card-actions">
+                        <button class="save-card-btn">Criar card</button>
+                        <button class="cancel-card-btn" aria-label="Cancelar">X</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </template>
+
+    <template id="card-template">
+        <article class="card" draggable="true" data-id="">
+            <div class="card-main">
+                <div class="card-topline">
+                    <h3 class="card-title"></h3>
+                    <span class="priority-chip"></span>
+                </div>
+                <p class="card-subject hidden"></p>
+                <p class="card-deadline hidden"></p>
+                <div class="card-progress hidden"></div>
+                <div class="card-actions-list"></div>
+            </div>
+            <button class="delete-card-btn" aria-label="Remover card">&times;</button>
+        </article>
+    </template>
+
+    <script src="script.js"></script>
+</body>
+</html>
