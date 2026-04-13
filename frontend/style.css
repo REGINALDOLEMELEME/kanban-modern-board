@@ -244,7 +244,7 @@ body {
 }
 
 .card-main {
-    padding-right: 86px;
+    padding-right: 0;
 }
 
 .card-topline {
@@ -252,6 +252,7 @@ body {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+    padding-right: 86px;
 }
 
 .card-chip-row {
@@ -713,6 +714,14 @@ body {
     margin-bottom: 0;
 }
 
+.comment-item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
 .comment-item-text {
     font-size: 13px;
     color: #17384f;
@@ -720,10 +729,25 @@ body {
 }
 
 .comment-item-date {
-    margin-top: 4px;
     font-size: 11px;
     color: #6d8395;
     font-weight: 700;
+}
+
+.comment-delete-btn {
+    border: 1px solid #f3c7c7;
+    background: #fff5f5;
+    color: #b42323;
+    border-radius: 8px;
+    width: 24px;
+    height: 24px;
+    line-height: 1;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.comment-delete-btn:hover {
+    background: #ffe6e6;
 }
 
 .toast-container {

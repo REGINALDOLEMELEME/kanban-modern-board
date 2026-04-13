@@ -1014,7 +1014,7 @@ async function openCommentsModal(cardEl) {
     const saveBtn = document.getElementById('comments-save-btn');
     const cancelBtn = document.getElementById('comments-cancel-btn');
 
-    const existingComments = normalizeComments(JSON.parse(cardEl.dataset.comments || '[]'));
+    let currentComments = normalizeComments(JSON.parse(cardEl.dataset.comments || '[]'));
     titleEl.textContent = `Card: ${cardEl.dataset.title || ''}`;
     inputEl.value = '';
 
@@ -1025,19 +1025,22 @@ async function openCommentsModal(cardEl) {
         }
 
         listEl.innerHTML = comments
-            .map(comment => {
+            .map((comment, index) => {
                 const timestamp = formatDateTimeBR(comment.created_at);
                 return `
                     <div class="comment-item">
+                        <div class="comment-item-header">
+                            ${timestamp ? `<p class="comment-item-date">${escapeHtml(timestamp)}</p>` : '<p class="comment-item-date"></p>'}
+                            <button class="comment-delete-btn" type="button" data-index="${index}" aria-label="Excluir comentario">&times;</button>
+                        </div>
                         <p class="comment-item-text">${escapeHtml(comment.text)}</p>
-                        ${timestamp ? `<p class="comment-item-date">${escapeHtml(timestamp)}</p>` : ''}
                     </div>
                 `;
             })
             .join('');
     };
 
-    renderComments(existingComments);
+    renderComments(currentComments);
     modal.classList.remove('hidden');
     inputEl.focus();
 
@@ -1045,6 +1048,7 @@ async function openCommentsModal(cardEl) {
         const cleanup = () => {
             saveBtn.removeEventListener('click', onSave);
             cancelBtn.removeEventListener('click', onCancel);
+            listEl.removeEventListener('click', onDeleteComment);
         };
 
         const close = () => {
@@ -1061,16 +1065,36 @@ async function openCommentsModal(cardEl) {
             }
 
             const nextComments = [
-                ...existingComments,
+                ...currentComments,
                 { text: newCommentText, created_at: new Date().toISOString() }
             ];
 
             const savedComments = await updateCardComments(cardEl.dataset.id, nextComments);
             if (!savedComments) return;
 
-            cardEl.dataset.comments = JSON.stringify(savedComments);
+            currentComments = savedComments;
+            cardEl.dataset.comments = JSON.stringify(currentComments);
             applyCardVisuals(cardEl);
-            close();
+            renderComments(currentComments);
+            inputEl.value = '';
+        };
+
+        const onDeleteComment = async event => {
+            const btn = event.target.closest('.comment-delete-btn');
+            if (!btn) return;
+
+            event.stopPropagation();
+            const index = Number(btn.dataset.index);
+            if (Number.isNaN(index) || index < 0 || index >= currentComments.length) return;
+
+            const nextComments = currentComments.filter((_, i) => i !== index);
+            const savedComments = await updateCardComments(cardEl.dataset.id, nextComments);
+            if (!savedComments) return;
+
+            currentComments = savedComments;
+            cardEl.dataset.comments = JSON.stringify(currentComments);
+            applyCardVisuals(cardEl);
+            renderComments(currentComments);
         };
 
         const onCancel = () => {
@@ -1079,6 +1103,7 @@ async function openCommentsModal(cardEl) {
 
         saveBtn.addEventListener('click', onSave);
         cancelBtn.addEventListener('click', onCancel);
+        listEl.addEventListener('click', onDeleteComment);
     });
 }
 
