@@ -36,9 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function setupBoardNameEditor() {
     const input = document.getElementById('board-name-input');
-    const saveButton = document.getElementById('save-board-name-btn');
-
-    saveButton.addEventListener('click', () => saveBoardName(input.value));
 
     input.addEventListener('keydown', async event => {
         if (event.key === 'Enter') {
@@ -46,15 +43,132 @@ function setupBoardNameEditor() {
             await saveBoardName(input.value);
         }
     });
+
+    input.addEventListener('blur', async () => {
+        await saveBoardName(input.value);
+    });
 }
 
 function setupPdfExport() {
     const exportButton = document.getElementById('export-pdf-btn');
     if (!exportButton) return;
 
-    exportButton.addEventListener('click', () => {
-        window.print();
+    exportButton.addEventListener('click', async () => {
+        await exportBoardToPDF();
     });
+}
+
+async function exportBoardToPDF() {
+    try {
+        const [boardNameResponse, boardResponse] = await Promise.all([
+            fetch(`${API_URL}/board-name`),
+            fetch(`${API_URL}/board`)
+        ]);
+
+        if (!boardNameResponse.ok || !boardResponse.ok) {
+            throw new Error('Falha ao carregar dados para exportacao.');
+        }
+
+        const boardNameData = await boardNameResponse.json();
+        const columns = await boardResponse.json();
+        const boardName = boardNameData?.name || 'Meu Quadro';
+        const generatedAt = new Date();
+        const generatedAtText = `${String(generatedAt.getDate()).padStart(2, '0')}/${String(generatedAt.getMonth() + 1).padStart(2, '0')}/${generatedAt.getFullYear()} ${String(generatedAt.getHours()).padStart(2, '0')}:${String(generatedAt.getMinutes()).padStart(2, '0')}`;
+
+        const content = columns.map(column => {
+            const cards = Array.isArray(column.cards) ? column.cards : [];
+            const cardsHtml = cards.length
+                ? cards.map(card => {
+                    const actions = normalizeActions(card.actions || []);
+                    const actionsHtml = actions.length
+                        ? `<ul>${actions.map(action => `<li>${action.done ? '✓' : '□'} ${escapeHtml(action.text)}</li>`).join('')}</ul>`
+                        : '<p class=\"muted\">Sem acoes.</p>';
+
+                    return `
+                        <article class=\"card\">
+                            <h4>${escapeHtml(card.content || '')}</h4>
+                            <p><strong>Prioridade:</strong> ${escapeHtml(buildPriorityLabel(card.priority || 'normal'))}</p>
+                            ${card.subject ? `<p><strong>Assunto:</strong> ${escapeHtml(card.subject)}</p>` : ''}
+                            ${card.due_date ? `<p><strong>Prazo:</strong> ${escapeHtml(formatDateBR(card.due_date))}</p>` : ''}
+                            ${card.blocked_reason ? `<p><strong>Bloqueio:</strong> ${escapeHtml(card.blocked_reason)}</p>` : ''}
+                            ${card.blocked_until ? `<p><strong>Conclusao prevista:</strong> ${escapeHtml(formatDateBR(card.blocked_until))}</p>` : ''}
+                            ${card.notes ? `<p><strong>Observacoes:</strong> ${escapeHtml(card.notes)}</p>` : ''}
+                            <div class=\"actions\">
+                                <p><strong>Acoes:</strong></p>
+                                ${actionsHtml}
+                            </div>
+                        </article>
+                    `;
+                }).join('')
+                : '<p class=\"muted\">Sem cards.</p>';
+
+            return `
+                <section class=\"column\">
+                    <h3>${escapeHtml(column.title || '')}</h3>
+                    ${cardsHtml}
+                </section>
+            `;
+        }).join('');
+
+        const html = `
+            <!DOCTYPE html>
+            <html lang=\"pt-BR\">
+            <head>
+                <meta charset=\"UTF-8\" />
+                <title>${escapeHtml(boardName)} - Exportacao</title>
+                <style>
+                    @page { margin: 14mm; }
+                    body { font-family: Arial, sans-serif; color: #1e2f3d; }
+                    h1 { margin: 0 0 4px; font-size: 24px; }
+                    .meta { margin: 0 0 16px; color: #5b7286; font-size: 12px; }
+                    .column { margin-bottom: 16px; border: 1px solid #d8e1e8; border-radius: 8px; padding: 10px; break-inside: avoid; }
+                    .column h3 { margin: 0 0 8px; font-size: 18px; }
+                    .card { margin-bottom: 10px; border: 1px solid #e3ebf1; border-radius: 8px; padding: 8px; break-inside: avoid; }
+                    .card h4 { margin: 0 0 6px; font-size: 16px; }
+                    .card p { margin: 3px 0; font-size: 13px; }
+                    .actions ul { margin: 4px 0 0 18px; padding: 0; }
+                    .actions li { margin: 2px 0; font-size: 13px; }
+                    .muted { color: #6c8498; }
+                </style>
+            </head>
+            <body>
+                <h1>${escapeHtml(boardName)}</h1>
+                <p class=\"meta\">Gerado em ${escapeHtml(generatedAtText)}</p>
+                ${content}
+            </body>
+            </html>
+        `;
+
+        const existingFrame = document.getElementById('pdf-export-frame');
+        if (existingFrame) {
+            existingFrame.remove();
+        }
+
+        const iframe = document.createElement('iframe');
+        iframe.id = 'pdf-export-frame';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        iframe.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(iframe);
+
+        const frameDoc = iframe.contentWindow.document;
+        frameDoc.open();
+        frameDoc.write(html);
+        frameDoc.close();
+
+        setTimeout(() => {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+            setTimeout(() => iframe.remove(), 1200);
+        }, 250);
+    } catch (error) {
+        console.error('Error exporting PDF:', error);
+        showToast('Falha ao exportar PDF.');
+    }
 }
 
 async function loadBoardName() {
@@ -125,7 +239,10 @@ function renderBoard(columnsData) {
     const columnTemplate = document.getElementById('column-template');
     const cardTemplate = document.getElementById('card-template');
 
-    columnsData.forEach(columnData => {
+    const hiddenColumns = new Set(['backlog']);
+    const visibleColumns = columnsData.filter(column => !hiddenColumns.has(normalizeColumnTitle(column.title)));
+
+    visibleColumns.forEach(columnData => {
         const columnClone = columnTemplate.content.cloneNode(true);
         const columnEl = columnClone.querySelector('.column');
         columnEl.dataset.id = columnData.id;

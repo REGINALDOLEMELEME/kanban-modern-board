@@ -594,8 +594,16 @@ body {
 }
 
 @media print {
+    * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    html,
     body {
         background: #ffffff;
+        height: auto;
+        min-height: auto;
     }
 
     .topbar {
@@ -629,16 +637,25 @@ body {
         overflow: visible;
         display: block;
         padding: 0;
+        height: auto;
     }
 
     .column {
         width: 100%;
         min-width: 100%;
+        max-height: none;
+        display: block;
         break-inside: avoid-page;
         margin-bottom: 14px;
         background: #ffffff;
         box-shadow: none;
         border: 1px solid #d8e1e8;
+    }
+
+    .card-list {
+        display: block;
+        overflow: visible;
+        max-height: none;
     }
 
     .card {
