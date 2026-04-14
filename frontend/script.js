@@ -1,4 +1,10 @@
-const API_URL = 'http://localhost:3000/api';
+const API_URL = (() => {
+    const path = window.location.pathname || '';
+    const appBase = path.includes('/frontend/')
+        ? path.slice(0, path.indexOf('/frontend/')) + '/'
+        : path.replace(/[^/]*$/, '');
+    return `${window.location.origin}${appBase}backend2/api/index.php?route=`;
+})();
 
 let draggedCard = null;
 let dragOriginParent = null;
