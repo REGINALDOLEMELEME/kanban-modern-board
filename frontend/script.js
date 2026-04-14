@@ -3,7 +3,7 @@ const API_URL = (() => {
     const appBase = path.includes('/frontend/')
         ? path.slice(0, path.indexOf('/frontend/')) + '/'
         : path.replace(/[^/]*$/, '');
-    return `${window.location.origin}${appBase}backend2/api/index.php?route=`;
+    return `${window.location.origin}${appBase}api/index.php?route=`;
 })();
 
 let draggedCard = null;
@@ -132,17 +132,19 @@ function updateGlobalCollapseButtonLabel() {
 }
 async function exportBoardToPDF() {
     try {
-        const [boardNameResponse, boardResponse] = await Promise.all([
+        const [boardNameResponse, boardResponse, archivedResponse] = await Promise.all([
             fetch(`${API_URL}/board-name`),
-            fetch(`${API_URL}/board`)
+            fetch(`${API_URL}/board`),
+            fetch(`${API_URL}/cards/archived`)
         ]);
 
-        if (!boardNameResponse.ok || !boardResponse.ok) {
+        if (!boardNameResponse.ok || !boardResponse.ok || !archivedResponse.ok) {
             throw new Error('Falha ao carregar dados para exportacao.');
         }
 
         const boardNameData = await boardNameResponse.json();
         const columns = await boardResponse.json();
+        const archivedCards = await archivedResponse.json();
         const boardName = boardNameData?.name || 'Meu Quadro';
         const generatedAt = new Date();
         const generatedAtText = `${String(generatedAt.getDate()).padStart(2, '0')}/${String(generatedAt.getMonth() + 1).padStart(2, '0')}/${generatedAt.getFullYear()} ${String(generatedAt.getHours()).padStart(2, '0')}:${String(generatedAt.getMinutes()).padStart(2, '0')}`;
@@ -184,6 +186,21 @@ async function exportBoardToPDF() {
             `;
         }).join('');
 
+        const archivedContent = Array.isArray(archivedCards) && archivedCards.length
+            ? archivedCards.map(card => {
+                const archivedAtText = card.archived_at ? formatDateTimeBR(card.archived_at) : '';
+                return `
+                    <article class=\"card archived-card\">
+                        <h4>${escapeHtml(card.content || '')}</h4>
+                        ${card.subject ? `<p><strong>Assunto:</strong> ${escapeHtml(card.subject)}</p>` : ''}
+                        <p><strong>Coluna:</strong> ${escapeHtml(card.column_title || 'Done')}</p>
+                        ${archivedAtText ? `<p><strong>Arquivado em:</strong> ${escapeHtml(archivedAtText)}</p>` : ''}
+                        ${card.notes ? `<p><strong>Observacoes:</strong> ${escapeHtml(card.notes)}</p>` : ''}
+                    </article>
+                `;
+            }).join('')
+            : '<p class=\"muted\">Sem cards arquivados.</p>';
+
         const html = `
             <!DOCTYPE html>
             <html lang=\"pt-BR\">
@@ -200,6 +217,8 @@ async function exportBoardToPDF() {
                     .card { margin-bottom: 10px; border: 1px solid #e3ebf1; border-radius: 8px; padding: 8px; break-inside: avoid; }
                     .card h4 { margin: 0 0 6px; font-size: 16px; }
                     .card p { margin: 3px 0; font-size: 13px; }
+                    .section-title { margin: 18px 0 10px; font-size: 20px; }
+                    .archived-card { border-style: dashed; }
                     .actions ul { margin: 4px 0 0 18px; padding: 0; }
                     .actions li { margin: 2px 0; font-size: 13px; }
                     .muted { color: #6c8498; }
@@ -208,7 +227,10 @@ async function exportBoardToPDF() {
             <body>
                 <h1>${escapeHtml(boardName)}</h1>
                 <p class=\"meta\">Gerado em ${escapeHtml(generatedAtText)}</p>
+                <h2 class=\"section-title\">Cards ativos</h2>
                 ${content}
+                <h2 class=\"section-title\">Cards arquivados</h2>
+                ${archivedContent}
             </body>
             </html>
         `;
