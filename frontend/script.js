@@ -345,6 +345,8 @@ function renderBoard(columnsData) {
             sortedCards.forEach(cardData => {
                 const cardEl = createCardElement(cardData, cardTemplate, columnData.id);
                 cardList.appendChild(cardEl);
+                // Reapply visuals after attaching to DOM so Done-column checks work reliably.
+                applyCardVisuals(cardEl);
             });
         }
 

@@ -178,7 +178,7 @@ body {
 .board {
     display: flex;
     align-items: flex-start;
-    gap: 12px;
+    gap: 9px;
     width: calc(100% - 40px);
     margin: 0 auto;
     padding: 8px 0 20px 0;
