@@ -602,12 +602,19 @@ body {
     color: var(--danger);
 }
 
-.card.card-collapsed .card-blocked-reason,
 .card.card-collapsed .card-blocked-until,
 .card.card-collapsed .card-progress,
 .card.card-collapsed .card-actions-list,
 .card.card-collapsed .card-notes {
     display: none !important;
+}
+
+.card.card-collapsed .card-blocked-reason {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-top: 4px;
 }
 
 .card.card-collapsed .card-topline {
