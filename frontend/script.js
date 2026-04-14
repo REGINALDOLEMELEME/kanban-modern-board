@@ -666,6 +666,8 @@ function applyCardVisuals(cardEl) {
     priorityChipEl.textContent = isCollapsed ? buildPriorityShortLabel(priority) : buildPriorityLabel(priority);
     priorityChipEl.className = 'priority-chip';
     priorityChipEl.classList.add(`priority-chip-${priority}`);
+    cardEl.classList.remove('card-priority-normal', 'card-priority-ponderado', 'card-priority-urgente');
+    cardEl.classList.add(`card-priority-${priority}`);
 
     if (comments.length > 0) {
         commentCountEl.textContent = String(comments.length);
@@ -688,6 +690,7 @@ function applyCardVisuals(cardEl) {
     renderActions(JSON.parse(cardEl.dataset.actions || '[]'), actionsListEl, progressEl, cardEl.dataset.id, cardEl);
 
     const inDoneColumn = isDoneColumnElement(cardEl.closest('.column'));
+    cardEl.classList.toggle('card-done', inDoneColumn);
     archiveBtn.classList.toggle('hidden', !inDoneColumn);
 }
 

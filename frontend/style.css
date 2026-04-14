@@ -1124,3 +1124,32 @@ body {
     box-shadow: 0 0 0 1px rgba(192, 57, 43, 0.18), 0 12px 24px rgba(192, 57, 43, 0.12);
 }
 
+.card.card-priority-urgente {
+    border-color: #f2a19a;
+    box-shadow: 0 0 0 1px rgba(192, 57, 43, 0.16), 0 10px 22px rgba(192, 57, 43, 0.1);
+}
+
+.card.card-priority-ponderado {
+    border-color: #f2d7a1;
+    box-shadow: 0 0 0 1px rgba(201, 123, 7, 0.14), 0 10px 22px rgba(201, 123, 7, 0.08);
+}
+
+.card.card-priority-normal {
+    border-color: #a7dfbf;
+    box-shadow: 0 0 0 1px rgba(31, 143, 95, 0.14), 0 10px 22px rgba(31, 143, 95, 0.08);
+}
+
+.card.card-done {
+    border-color: #9fd9b5;
+    background: linear-gradient(160deg, #f4fff8 0%, #ecfbf3 100%);
+    box-shadow: 0 0 0 1px rgba(49, 151, 94, 0.16), 0 10px 24px rgba(40, 125, 77, 0.12);
+}
+
+.card.card-done .card-title {
+    color: #165a35;
+}
+
+.card.card-done .card-progress {
+    color: #1f6d40;
+}
+
