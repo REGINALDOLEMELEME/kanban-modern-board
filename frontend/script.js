@@ -623,12 +623,36 @@ function escapeHtml(text) {
         .replaceAll("'", '&#039;');
 }
 
-function parseActionsFromText(actionsText) {
+function parseActionsFromText(actionsText, existingActions = []) {
+    const normalizedExisting = normalizeActions(existingActions);
+    const usedIndexes = new Set();
+
+    const findByText = text => {
+        for (let i = 0; i < normalizedExisting.length; i++) {
+            if (usedIndexes.has(i)) continue;
+            if (normalizedExisting[i].text !== text) continue;
+            usedIndexes.add(i);
+            return normalizedExisting[i];
+        }
+
+        return null;
+    };
+
     return actionsText
         .split('\n')
         .map(action => action.trim())
         .filter(Boolean)
-        .map(text => ({ text, done: false }));
+        .map((text, index) => {
+            const previousByText = findByText(text);
+            let previous = previousByText;
+
+            if (!previous && normalizedExisting[index] && !usedIndexes.has(index)) {
+                previous = normalizedExisting[index];
+                usedIndexes.add(index);
+            }
+
+            return { text, done: previous ? previous.done : false };
+        });
 }
 
 function actionsToText(actions) {
@@ -785,7 +809,47 @@ function formatLogDetails(details) {
         return `Campo "${buildLogFieldLabel(moveFieldMatch[1])}" alterado ao mover card`;
     }
 
+    if (/^Acoes atualizadas$/i.test(text)) {
+        return 'Checklist atualizado';
+    }
+
     return text;
+}
+
+function parseActionsLogValue(value) {
+    if (value === null || value === undefined) return null;
+
+    if (Array.isArray(value)) {
+        return normalizeActions(value);
+    }
+
+    const text = String(value).trim();
+    if (!text || text === '-') return null;
+
+    try {
+        const parsed = JSON.parse(text);
+        if (!Array.isArray(parsed)) return null;
+        return normalizeActions(parsed);
+    } catch {
+        return null;
+    }
+}
+
+function formatLogValueByField(rawValue, rawFieldName) {
+    if (rawValue === null || rawValue === undefined || rawValue === '') {
+        return '-';
+    }
+
+    if (rawFieldName === 'actions') {
+        const actions = parseActionsLogValue(rawValue);
+        if (!actions || actions.length === 0) return 'Sem acoes';
+
+        const doneCount = actions.filter(action => action.done).length;
+        const totalCount = actions.length;
+        return `${doneCount}/${totalCount} concluidas`;
+    }
+
+    return String(rawValue);
 }
 
 async function loadLogs(filters = {}) {
@@ -857,13 +921,16 @@ async function loadLogs(filters = {}) {
                     </thead>
                     <tbody>
                         ${logs.map(log => {
+                            const rawFieldName = String(log.field_name || '').trim();
                             const actionLabel = buildLogActionLabel(log.action);
                             const actionClass = buildLogActionClass(log.action);
-                            const fromValue = (log.from_column || log.old_value || '-');
-                            const toValue = (log.to_column || log.new_value || '-');
+                            const fromRawValue = (log.from_column ?? log.old_value ?? null);
+                            const toRawValue = (log.to_column ?? log.new_value ?? null);
+                            const fromValue = formatLogValueByField(fromRawValue, rawFieldName);
+                            const toValue = formatLogValueByField(toRawValue, rawFieldName);
                             const detailsValue = formatLogDetails(log.details);
                             const cardTitle = log.card_title || 'Card sem titulo';
-                            const fieldName = buildLogFieldLabel(log.field_name);
+                            const fieldName = buildLogFieldLabel(rawFieldName);
 
                             return `
                                 <tr>
@@ -1657,7 +1724,10 @@ async function openEditCardModal(cardEl) {
                 subject: subjectInput.value.trim() || null,
                 due_date: normalizeDateInput(dueDateInput.value) || null,
                 notes: notesInput.value.trim() || null,
-                actions: parseActionsFromText(actionsInput.value),
+                actions: parseActionsFromText(
+                    actionsInput.value,
+                    JSON.parse(cardEl.dataset.actions || '[]')
+                ),
                 priority: priorityInput.value || 'normal',
                 blocked_reason: null,
                 blocked_until: null
