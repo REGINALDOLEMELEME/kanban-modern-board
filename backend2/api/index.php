@@ -24,6 +24,7 @@ try {
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
+    ensureChangeLogsTable($pdo);
 } catch (Throwable $e) {
     respond(['error' => 'Database connection failed'], 500);
 }
@@ -32,6 +33,90 @@ $route = getRoute();
 $method = $_SERVER['REQUEST_METHOD'];
 
 try {
+    if ($method === 'GET' && $route === '/logs') {
+        $query = trim((string)($_GET['q'] ?? ''));
+        $action = trim((string)($_GET['action'] ?? ''));
+        $dateFrom = sanitizeDate($_GET['date_from'] ?? null);
+        $dateTo = sanitizeDate($_GET['date_to'] ?? null);
+        $perPage = (int)($_GET['per_page'] ?? ($_GET['limit'] ?? 10));
+        if ($perPage < 1) {
+            $perPage = 1;
+        }
+        if ($perPage > 100) {
+            $perPage = 100;
+        }
+        $page = (int)($_GET['page'] ?? 1);
+        if ($page < 1) {
+            $page = 1;
+        }
+        $offset = ($page - 1) * $perPage;
+
+        $whereSql = ' FROM change_logs WHERE 1 = 1';
+        $params = [];
+
+        if ($query !== '') {
+            $whereSql .= ' AND (
+                card_title LIKE :query
+                OR details LIKE :query
+                OR old_value LIKE :query
+                OR new_value LIKE :query
+                OR from_column LIKE :query
+                OR to_column LIKE :query
+            )';
+            $params[':query'] = '%' . $query . '%';
+        }
+
+        if ($action !== '') {
+            $whereSql .= ' AND action = :action';
+            $params[':action'] = $action;
+        }
+
+        if ($dateFrom !== null) {
+            $whereSql .= ' AND DATE(created_at) >= :date_from';
+            $params[':date_from'] = $dateFrom;
+        }
+
+        if ($dateTo !== null) {
+            $whereSql .= ' AND DATE(created_at) <= :date_to';
+            $params[':date_to'] = $dateTo;
+        }
+
+        $countSql = 'SELECT COUNT(*) AS total_rows' . $whereSql;
+        $countStmt = $pdo->prepare($countSql);
+        foreach ($params as $key => $value) {
+            $countStmt->bindValue($key, $value, PDO::PARAM_STR);
+        }
+        $countStmt->execute();
+        $totalRows = (int)($countStmt->fetch()['total_rows'] ?? 0);
+        $totalPages = max(1, (int)ceil($totalRows / $perPage));
+        if ($page > $totalPages) {
+            $page = $totalPages;
+            $offset = ($page - 1) * $perPage;
+        }
+
+        $sql = 'SELECT id, card_id, card_title, action, field_name, old_value, new_value, from_column, to_column, details, created_at'
+            . $whereSql
+            . ' ORDER BY created_at DESC, id DESC LIMIT :limit_rows OFFSET :offset_rows';
+
+        $stmt = $pdo->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':limit_rows', $perPage, PDO::PARAM_INT);
+        $stmt->bindValue(':offset_rows', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+
+        respond([
+            'items' => $stmt->fetchAll(),
+            'pagination' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'total_rows' => $totalRows,
+                'total_pages' => $totalPages,
+            ],
+        ]);
+    }
+
     if ($method === 'GET' && $route === '/board-name') {
         $stmt = $pdo->query('SELECT name FROM board_settings WHERE id = 1 LIMIT 1');
         $row = $stmt->fetch();
@@ -115,8 +200,19 @@ try {
             $orderIndex,
         ]);
 
+        $cardId = (int)$pdo->lastInsertId();
+        $createdCard = getCardSnapshot($pdo, $cardId);
+        if ($createdCard) {
+            logCardChange($pdo, [
+                'card_id' => $cardId,
+                'card_title' => $createdCard['content'],
+                'action' => 'card_created',
+                'details' => 'Card criado em ' . ($createdCard['column_title'] ?? 'coluna desconhecida'),
+            ]);
+        }
+
         respond([
-            'id' => (int)$pdo->lastInsertId(),
+            'id' => $cardId,
             'column_id' => $columnId,
             'content' => $content,
             'subject' => $subject,
@@ -135,9 +231,14 @@ try {
         $cardId = (int)$m[1];
         $body = getJsonBody();
         $columnId = (int)($body['column_id'] ?? 0);
+        $beforeCard = getCardSnapshot($pdo, $cardId);
 
         if ($columnId <= 0) {
             respond(['error' => 'Missing column_id'], 400);
+        }
+
+        if (!$beforeCard) {
+            respond(['error' => 'Card not found'], 404);
         }
 
         $stmt = $pdo->prepare('SELECT title FROM columns WHERE id = ? LIMIT 1');
@@ -171,6 +272,39 @@ try {
         $stmt->execute([$cardId]);
         $card = $stmt->fetch() ?: [];
 
+        $afterCard = getCardSnapshot($pdo, $cardId);
+        if ($afterCard) {
+            if ((int)$beforeCard['column_id'] !== (int)$afterCard['column_id']) {
+                logCardChange($pdo, [
+                    'card_id' => $cardId,
+                    'card_title' => $afterCard['content'],
+                    'action' => 'card_moved',
+                    'field_name' => 'column_id',
+                    'from_column' => $beforeCard['column_title'] ?? null,
+                    'to_column' => $afterCard['column_title'] ?? null,
+                    'details' => sprintf(
+                        'Card movido de "%s" para "%s"',
+                        (string)($beforeCard['column_title'] ?? 'desconhecida'),
+                        (string)($afterCard['column_title'] ?? 'desconhecida')
+                    ),
+                ]);
+            }
+
+            foreach (['blocked_reason', 'blocked_until'] as $fieldName) {
+                if (valuesDiffer($beforeCard[$fieldName] ?? null, $afterCard[$fieldName] ?? null)) {
+                    logCardChange($pdo, [
+                        'card_id' => $cardId,
+                        'card_title' => $afterCard['content'],
+                        'action' => 'card_updated',
+                        'field_name' => $fieldName,
+                        'old_value' => $beforeCard[$fieldName] ?? null,
+                        'new_value' => $afterCard[$fieldName] ?? null,
+                        'details' => sprintf('Campo "%s" alterado ao mover card', $fieldName),
+                    ]);
+                }
+            }
+        }
+
         respond([
             'success' => true,
             'blocked_reason' => $isBlocked ? ($card['blocked_reason'] ?? null) : null,
@@ -181,10 +315,15 @@ try {
     if ($method === 'PUT' && preg_match('#^/cards/(\d+)$#', $route, $m)) {
         $cardId = (int)$m[1];
         $body = getJsonBody();
+        $beforeCard = getCardSnapshot($pdo, $cardId);
 
         $content = trim((string)($body['content'] ?? ''));
         if ($content === '') {
             respond(['error' => 'Missing content'], 400);
+        }
+
+        if (!$beforeCard) {
+            respond(['error' => 'Card not found'], 404);
         }
 
         $subject = normalizeNullableText($body['subject'] ?? null);
@@ -216,6 +355,47 @@ try {
             $cardId,
         ]);
 
+        $afterCard = getCardSnapshot($pdo, $cardId);
+        if ($afterCard) {
+            $fields = [
+                'content' => 'card_updated',
+                'subject' => 'card_updated',
+                'notes' => 'card_updated',
+                'priority' => 'card_updated',
+                'blocked_reason' => 'card_updated',
+                'blocked_until' => 'card_updated',
+                'due_date' => 'due_date_changed',
+            ];
+
+            foreach ($fields as $fieldName => $actionName) {
+                if (valuesDiffer($beforeCard[$fieldName] ?? null, $afterCard[$fieldName] ?? null)) {
+                    logCardChange($pdo, [
+                        'card_id' => $cardId,
+                        'card_title' => $afterCard['content'],
+                        'action' => $actionName,
+                        'field_name' => $fieldName,
+                        'old_value' => $beforeCard[$fieldName] ?? null,
+                        'new_value' => $afterCard[$fieldName] ?? null,
+                        'details' => sprintf('Campo "%s" alterado', $fieldName),
+                    ]);
+                }
+            }
+
+            $beforeActions = json_encode(decodeJsonList($beforeCard['actions'] ?? null, 'actions'), JSON_UNESCAPED_UNICODE);
+            $afterActions = json_encode(decodeJsonList($afterCard['actions'] ?? null, 'actions'), JSON_UNESCAPED_UNICODE);
+            if (valuesDiffer($beforeActions, $afterActions)) {
+                logCardChange($pdo, [
+                    'card_id' => $cardId,
+                    'card_title' => $afterCard['content'],
+                    'action' => 'card_updated',
+                    'field_name' => 'actions',
+                    'old_value' => $beforeActions,
+                    'new_value' => $afterActions,
+                    'details' => 'Acoes do card alteradas',
+                ]);
+            }
+        }
+
         respond([
             'success' => true,
             'card' => [
@@ -236,9 +416,28 @@ try {
         $cardId = (int)$m[1];
         $body = getJsonBody();
         $actions = sanitizeActions($body['actions'] ?? []);
+        $beforeCard = getCardSnapshot($pdo, $cardId);
+
+        if (!$beforeCard) {
+            respond(['error' => 'Card not found'], 404);
+        }
 
         $stmt = $pdo->prepare('UPDATE cards SET actions = ? WHERE id = ?');
         $stmt->execute([json_encode($actions), $cardId]);
+
+        $newActions = json_encode($actions, JSON_UNESCAPED_UNICODE);
+        $oldActions = json_encode(decodeJsonList($beforeCard['actions'] ?? null, 'actions'), JSON_UNESCAPED_UNICODE);
+        if (valuesDiffer($oldActions, $newActions)) {
+            logCardChange($pdo, [
+                'card_id' => $cardId,
+                'card_title' => $beforeCard['content'],
+                'action' => 'card_updated',
+                'field_name' => 'actions',
+                'old_value' => $oldActions,
+                'new_value' => $newActions,
+                'details' => 'Acoes atualizadas',
+            ]);
+        }
 
         respond(['success' => true, 'actions' => $actions]);
     }
@@ -247,9 +446,28 @@ try {
         $cardId = (int)$m[1];
         $body = getJsonBody();
         $comments = sanitizeComments($body['comments'] ?? []);
+        $beforeCard = getCardSnapshot($pdo, $cardId);
+
+        if (!$beforeCard) {
+            respond(['error' => 'Card not found'], 404);
+        }
 
         $stmt = $pdo->prepare('UPDATE cards SET comments = ? WHERE id = ?');
         $stmt->execute([json_encode($comments), $cardId]);
+
+        $newComments = json_encode($comments, JSON_UNESCAPED_UNICODE);
+        $oldComments = json_encode(decodeJsonList($beforeCard['comments'] ?? null, 'comments'), JSON_UNESCAPED_UNICODE);
+        if (valuesDiffer($oldComments, $newComments)) {
+            logCardChange($pdo, [
+                'card_id' => $cardId,
+                'card_title' => $beforeCard['content'],
+                'action' => 'card_comment_updated',
+                'field_name' => 'comments',
+                'old_value' => $oldComments,
+                'new_value' => $newComments,
+                'details' => 'Comentarios atualizados',
+            ]);
+        }
 
         respond(['success' => true, 'comments' => $comments]);
     }
@@ -278,6 +496,17 @@ try {
         if ((int)$card['archived'] !== 1) {
             $stmt = $pdo->prepare('UPDATE cards SET archived = 1, archived_at = NOW() WHERE id = ?');
             $stmt->execute([$cardId]);
+            $snapshot = getCardSnapshot($pdo, $cardId);
+            if ($snapshot) {
+                logCardChange($pdo, [
+                    'card_id' => $cardId,
+                    'card_title' => $snapshot['content'],
+                    'action' => 'card_archived',
+                    'from_column' => $snapshot['column_title'] ?? null,
+                    'to_column' => $snapshot['column_title'] ?? null,
+                    'details' => 'Card arquivado',
+                ]);
+            }
         }
 
         respond(['success' => true]);
@@ -303,6 +532,7 @@ try {
 
     if ($method === 'PUT' && preg_match('#^/cards/(\d+)/unarchive$#', $route, $m)) {
         $cardId = (int)$m[1];
+        $beforeCard = getCardSnapshot($pdo, $cardId);
 
         $stmt = $pdo->query('SELECT id FROM columns WHERE LOWER(TRIM(title)) = "done" ORDER BY order_index ASC LIMIT 1');
         $done = $stmt->fetch();
@@ -316,14 +546,37 @@ try {
         $stmt = $pdo->prepare('UPDATE cards SET archived = 0, archived_at = NULL, column_id = ? WHERE id = ?');
         $stmt->execute([$doneColumnId, $cardId]);
 
+        $afterCard = getCardSnapshot($pdo, $cardId);
+        if ($afterCard) {
+            logCardChange($pdo, [
+                'card_id' => $cardId,
+                'card_title' => $afterCard['content'],
+                'action' => 'card_unarchived',
+                'from_column' => $beforeCard['column_title'] ?? null,
+                'to_column' => $afterCard['column_title'] ?? null,
+                'details' => 'Card desarquivado',
+            ]);
+        }
+
         respond(['success' => true, 'column_id' => $doneColumnId]);
     }
 
     if ($method === 'DELETE' && preg_match('#^/cards/(\d+)$#', $route, $m)) {
         $cardId = (int)$m[1];
+        $beforeCard = getCardSnapshot($pdo, $cardId);
 
         $stmt = $pdo->prepare('DELETE FROM cards WHERE id = ?');
         $stmt->execute([$cardId]);
+
+        if ($beforeCard) {
+            logCardChange($pdo, [
+                'card_id' => $cardId,
+                'card_title' => $beforeCard['content'],
+                'action' => 'card_deleted',
+                'from_column' => $beforeCard['column_title'] ?? null,
+                'details' => 'Card removido',
+            ]);
+        }
 
         respond(['success' => true]);
     }
@@ -484,6 +737,86 @@ function decodeJsonList($value, string $type): array
     }
 
     return $type === 'comments' ? sanitizeComments($decoded) : sanitizeActions($decoded);
+}
+
+function ensureChangeLogsTable(PDO $pdo): void
+{
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS change_logs (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            card_id INT NULL,
+            card_title VARCHAR(255) NULL,
+            action VARCHAR(64) NOT NULL,
+            field_name VARCHAR(64) NULL,
+            old_value TEXT NULL,
+            new_value TEXT NULL,
+            from_column VARCHAR(255) NULL,
+            to_column VARCHAR(255) NULL,
+            details TEXT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_change_logs_created_at (created_at),
+            INDEX idx_change_logs_action (action),
+            INDEX idx_change_logs_card_id (card_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+}
+
+function getCardSnapshot(PDO $pdo, int $cardId): ?array
+{
+    $stmt = $pdo->prepare(
+        'SELECT cards.*, columns.title AS column_title
+         FROM cards
+         LEFT JOIN columns ON cards.column_id = columns.id
+         WHERE cards.id = ?
+         LIMIT 1'
+    );
+    $stmt->execute([$cardId]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+function valuesDiffer($oldValue, $newValue): bool
+{
+    return normalizeLogValue($oldValue) !== normalizeLogValue($newValue);
+}
+
+function normalizeLogValue($value): ?string
+{
+    if ($value === null) {
+        return null;
+    }
+
+    if (is_bool($value)) {
+        return $value ? '1' : '0';
+    }
+
+    if (is_scalar($value)) {
+        $text = trim((string)$value);
+        return $text === '' ? null : $text;
+    }
+
+    return json_encode($value, JSON_UNESCAPED_UNICODE);
+}
+
+function logCardChange(PDO $pdo, array $payload): void
+{
+    $stmt = $pdo->prepare(
+        'INSERT INTO change_logs (
+            card_id, card_title, action, field_name, old_value, new_value, from_column, to_column, details
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+
+    $stmt->execute([
+        isset($payload['card_id']) ? (int)$payload['card_id'] : null,
+        normalizeLogValue($payload['card_title'] ?? null),
+        normalizeLogValue($payload['action'] ?? null),
+        normalizeLogValue($payload['field_name'] ?? null),
+        normalizeLogValue($payload['old_value'] ?? null),
+        normalizeLogValue($payload['new_value'] ?? null),
+        normalizeLogValue($payload['from_column'] ?? null),
+        normalizeLogValue($payload['to_column'] ?? null),
+        normalizeLogValue($payload['details'] ?? null),
+    ]);
 }
 
 function respond(array $payload, int $status = 200): void

@@ -140,6 +140,11 @@ body {
     background: #f7fbff;
 }
 
+#logs-menu-btn {
+    border-color: #d4d8ef;
+    background: #f5f7ff;
+}
+
 #export-pdf-btn {
     border-color: #c7ddd0;
     background: #f4fbf7;
@@ -973,6 +978,231 @@ body {
     background: #ddf3e3;
 }
 
+.logs-search-form {
+    margin-bottom: 10px;
+}
+
+.logs-search-row {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: 8px;
+}
+
+.logs-page-size-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #557084;
+}
+
+.logs-page-size-select {
+    width: 88px;
+    margin-bottom: 0;
+}
+
+.logs-list {
+    border: 1px solid #d9e6ef;
+    border-radius: 10px;
+    background: linear-gradient(160deg, #f8fbfd 0%, #f4f9ff 100%);
+    padding: 8px;
+    max-height: 330px;
+    overflow-y: auto;
+}
+
+.logs-empty {
+    color: var(--ink-soft);
+    font-size: 13px;
+    padding: 10px;
+}
+
+.logs-pagination-bottom {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.logs-page-size-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.logs-page-info {
+    min-width: 220px;
+    text-align: center;
+    font-size: 12px;
+    color: #557084;
+    font-weight: 700;
+}
+
+.logs-pagination-bottom .board-name-btn {
+    min-height: 34px;
+    padding: 6px 10px;
+}
+
+.logs-pagination-bottom .board-name-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+#logs-modal .blocked-modal-panel {
+    width: min(1180px, 100%);
+}
+
+.logs-table-wrap {
+    border: 1px solid #d8e8f4;
+    border-radius: 10px;
+    overflow: auto;
+    background: #ffffff;
+}
+
+.logs-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 920px;
+    table-layout: fixed;
+}
+
+.logs-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #3f617a;
+    border-bottom: 1px solid #d9e8f3;
+    background: linear-gradient(180deg, #f4f9ff 0%, #ecf4fb 100%);
+}
+
+.logs-table tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #ecf3f9;
+    font-size: 12px;
+    color: #24485f;
+    vertical-align: top;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.35;
+}
+
+.logs-table tbody tr:nth-child(odd) {
+    background: #fcfeff;
+}
+
+.logs-table tbody tr:hover {
+    background: #f2f8ff;
+}
+
+.log-cell-date {
+    color: #5d778a !important;
+    font-weight: 700;
+}
+
+.log-th-date,
+.log-cell-date {
+    width: 120px;
+}
+
+.log-th-action,
+.log-col-action {
+    width: 120px;
+}
+
+.log-th-card,
+.log-col-card {
+    width: 180px;
+}
+
+.log-th-field,
+.log-col-field {
+    width: 130px;
+}
+
+.log-th-old,
+.log-col-old,
+.log-th-new,
+.log-col-new {
+    width: 170px;
+}
+
+.log-th-details,
+.log-col-details {
+    width: 260px;
+}
+
+.log-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.log-badge-created {
+    background: #e7f8ee;
+    color: #15673b;
+    border-color: #bfe8cf;
+}
+
+.log-badge-moved {
+    background: #e8f2ff;
+    color: #225a9f;
+    border-color: #c8defa;
+}
+
+.log-badge-updated {
+    background: #fff5e8;
+    color: #92590f;
+    border-color: #f5dab6;
+}
+
+.log-badge-due {
+    background: #ffeef0;
+    color: #a42b3b;
+    border-color: #f5c5cd;
+}
+
+.log-badge-comment {
+    background: #eef1ff;
+    color: #4f46af;
+    border-color: #d4d0f9;
+}
+
+.log-badge-archived {
+    background: #edf2f7;
+    color: #445369;
+    border-color: #d4dde9;
+}
+
+.log-badge-unarchived {
+    background: #e8f7ff;
+    color: #0f6c85;
+    border-color: #c0e4f2;
+}
+
+.log-badge-deleted {
+    background: #ffeaea;
+    color: #a02222;
+    border-color: #f3c2c2;
+}
+
+.log-badge-default {
+    background: #f1f5f9;
+    color: #46596d;
+    border-color: #d8e1ea;
+}
+
 .comment-delete-btn {
     border: 1px solid #f3c7c7;
     background: #fff5f5;
@@ -1050,6 +1280,28 @@ body {
     .board-top-actions .board-name-btn {
         width: 100%;
     }
+
+    .logs-search-row {
+        grid-template-columns: 1fr;
+    }
+
+    .logs-list {
+        max-height: 55vh;
+    }
+
+    .logs-pagination-bottom {
+        justify-content: stretch;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .logs-page-size-group {
+        justify-content: space-between;
+    }
+
+    .logs-page-info {
+        min-width: 0;
+    }
 }
 
 @media print {
@@ -1083,6 +1335,7 @@ body {
     .add-card-container,
     .comment-card-btn,
     .archive-card-btn,
+    #logs-menu-btn,
     .comment-indicator-btn,
     .delete-card-btn {
         display: none !important;

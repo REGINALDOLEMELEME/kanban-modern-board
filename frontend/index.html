@@ -16,6 +16,7 @@
             <div class="board-name-row">
                 <input id="board-name-input" class="board-name-input" type="text" maxlength="255" aria-label="Nome do quadro" />
                 <div class="board-top-actions">
+                    <button id="logs-menu-btn" class="board-name-btn board-name-btn-secondary" type="button">Logs</button>
                     <button id="archived-menu-btn" class="board-name-btn board-name-btn-secondary">Arquivados</button>
                     <button id="export-pdf-btn" class="board-name-btn board-name-btn-secondary">Exportar PDF</button>
                     <button id="global-toggle-collapse-btn" class="board-name-btn board-name-btn-secondary" type="button">Colapsar todos</button>
@@ -160,7 +161,50 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <div id="logs-modal" class="blocked-modal hidden" role="dialog" aria-modal="true" aria-labelledby="logs-modal-title">
+        <div class="blocked-modal-panel logs-modal-panel">
+            <h3 id="logs-modal-title">Log de alteracoes</h3>
+            <form id="logs-search-form" class="logs-search-form">
+                <input id="logs-query-input" class="blocked-modal-input" type="text" placeholder="Buscar por card, detalhe ou valor" />
+                <div class="logs-search-row">
+                    <select id="logs-action-input" class="blocked-modal-input">
+                        <option value="">Todas as acoes</option>
+                        <option value="card_created">Card criado</option>
+                        <option value="card_moved">Card movido</option>
+                        <option value="card_updated">Card alterado</option>
+                        <option value="due_date_changed">Prazo alterado</option>
+                        <option value="card_comment_updated">Comentarios alterados</option>
+                        <option value="card_archived">Card arquivado</option>
+                        <option value="card_unarchived">Card desarquivado</option>
+                        <option value="card_deleted">Card removido</option>
+                    </select>
+                    <input id="logs-date-from-input" class="blocked-modal-input" type="date" />
+                    <input id="logs-date-to-input" class="blocked-modal-input" type="date" />
+                </div>
+                <div class="blocked-modal-actions">
+                    <button id="logs-search-btn" class="save-card-btn" type="submit">Buscar</button>
+                    <button id="logs-clear-btn" class="board-name-btn board-name-btn-secondary" type="button">Limpar</button>
+                    <button id="logs-close-btn" class="cancel-card-btn" type="button" aria-label="Fechar">X</button>
+                </div>
+            </form>
+            <div id="logs-list" class="logs-list"></div>
+            <div class="logs-pagination-bottom">
+                <div class="logs-page-size-group">
+                    <label for="logs-page-size" class="logs-page-size-label">Mostrar por pagina</label>
+                    <select id="logs-page-size" class="blocked-modal-input logs-page-size-select">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="30">30</option>
+                    </select>
+                </div>
+                <button id="logs-prev-page-btn" class="board-name-btn board-name-btn-secondary" type="button">Anterior</button>
+                <span id="logs-page-info" class="logs-page-info">Pagina 1 de 1</span>
+                <button id="logs-next-page-btn" class="board-name-btn board-name-btn-secondary" type="button">Proxima</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js?v=20260416-3"></script>
 </body>
 </html>
 

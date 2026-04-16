@@ -11,6 +11,12 @@ let dragOriginParent = null;
 let dragOriginNextSibling = null;
 let dragOriginColumnId = null;
 const collapsedCardIds = new Set();
+const logsState = {
+    page: 1,
+    perPage: 10,
+    totalPages: 1,
+    lastFilters: {}
+};
 
 function showToast(message, type = 'error') {
     let container = document.getElementById('toast-container');
@@ -38,9 +44,21 @@ document.addEventListener('DOMContentLoaded', () => {
     setupBoardNameEditor();
     setupPdfExport();
     setupArchivedMenu();
+    setupLogsMenu();
     setupGlobalCollapseControl();
     loadBoardName();
     loadBoard();
+});
+
+document.addEventListener('click', async event => {
+    const logsBtn = event.target.closest('#logs-menu-btn');
+    if (!logsBtn) return;
+
+    const logsModal = document.getElementById('logs-modal');
+    if (!logsModal) return;
+
+    logsModal.classList.remove('hidden');
+    await loadLogs(readLogFilters());
 });
 
 function setupBoardNameEditor() {
@@ -82,6 +100,84 @@ function setupArchivedMenu() {
     archivedCloseBtn.addEventListener('click', () => {
         archivedModal.classList.add('hidden');
     });
+}
+
+function setupLogsMenu() {
+    const logsMenuBtn = document.getElementById('logs-menu-btn');
+    const logsModal = document.getElementById('logs-modal');
+    const logsCloseBtn = document.getElementById('logs-close-btn');
+    const logsForm = document.getElementById('logs-search-form');
+    const logsClearBtn = document.getElementById('logs-clear-btn');
+    const logsPageSizeInput = document.getElementById('logs-page-size');
+    const logsPrevPageBtn = document.getElementById('logs-prev-page-btn');
+    const logsNextPageBtn = document.getElementById('logs-next-page-btn');
+
+    if (!logsMenuBtn || !logsModal) return;
+
+    logsMenuBtn.addEventListener('click', async () => {
+        logsModal.classList.remove('hidden');
+        logsState.page = 1;
+        logsState.lastFilters = readLogFilters();
+        logsState.perPage = Number(logsPageSizeInput?.value || logsState.perPage || 10);
+        await loadLogs();
+    });
+
+    if (logsCloseBtn) {
+        logsCloseBtn.addEventListener('click', () => {
+            logsModal.classList.add('hidden');
+        });
+    }
+
+    if (logsForm) {
+        logsForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            logsState.page = 1;
+            logsState.lastFilters = readLogFilters();
+            await loadLogs();
+        });
+    }
+
+    if (logsClearBtn) {
+        logsClearBtn.addEventListener('click', async () => {
+            const queryInput = document.getElementById('logs-query-input');
+            const actionInput = document.getElementById('logs-action-input');
+            const fromInput = document.getElementById('logs-date-from-input');
+            const toInput = document.getElementById('logs-date-to-input');
+
+            if (queryInput) queryInput.value = '';
+            if (actionInput) actionInput.value = '';
+            if (fromInput) fromInput.value = '';
+            if (toInput) toInput.value = '';
+            logsState.page = 1;
+            logsState.lastFilters = readLogFilters();
+            await loadLogs();
+        });
+    }
+
+    if (logsPageSizeInput) {
+        logsPageSizeInput.addEventListener('change', async () => {
+            const parsed = Number(logsPageSizeInput.value || '10');
+            logsState.perPage = [5, 10, 30].includes(parsed) ? parsed : 10;
+            logsState.page = 1;
+            await loadLogs();
+        });
+    }
+
+    if (logsPrevPageBtn) {
+        logsPrevPageBtn.addEventListener('click', async () => {
+            if (logsState.page <= 1) return;
+            logsState.page -= 1;
+            await loadLogs();
+        });
+    }
+
+    if (logsNextPageBtn) {
+        logsNextPageBtn.addEventListener('click', async () => {
+            if (logsState.page >= logsState.totalPages) return;
+            logsState.page += 1;
+            await loadLogs();
+        });
+    }
 }
 
 function setupGlobalCollapseControl() {
@@ -609,6 +705,189 @@ function formatDateTimeBR(dateTimeValue) {
     if (Number.isNaN(date.getTime())) return '';
 
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function readLogFilters() {
+    return {
+        q: document.getElementById('logs-query-input')?.value?.trim() || '',
+        action: document.getElementById('logs-action-input')?.value || '',
+        date_from: document.getElementById('logs-date-from-input')?.value || '',
+        date_to: document.getElementById('logs-date-to-input')?.value || ''
+    };
+}
+
+function buildLogActionLabel(action) {
+    const labels = {
+        card_created: 'Card criado',
+        card_moved: 'Card movido',
+        card_updated: 'Card alterado',
+        due_date_changed: 'Prazo alterado',
+        card_comment_updated: 'Comentarios alterados',
+        card_archived: 'Card arquivado',
+        card_unarchived: 'Card desarquivado',
+        card_deleted: 'Card removido'
+    };
+
+    return labels[action] || action || 'Alteracao';
+}
+
+function buildLogFieldLabel(fieldName) {
+    const labels = {
+        column_id: 'Coluna',
+        content: 'Titulo',
+        subject: 'Assunto',
+        notes: 'Observacoes',
+        priority: 'Prioridade',
+        due_date: 'Prazo',
+        blocked_reason: 'Motivo do bloqueio',
+        blocked_until: 'Previsao de desbloqueio',
+        actions: 'Lista de acoes',
+        comments: 'Comentarios'
+    };
+
+    const key = String(fieldName || '').trim();
+    return labels[key] || (key || '-');
+}
+
+function buildLogActionClass(action) {
+    const classes = {
+        card_created: 'log-badge-created',
+        card_moved: 'log-badge-moved',
+        card_updated: 'log-badge-updated',
+        due_date_changed: 'log-badge-due',
+        card_comment_updated: 'log-badge-comment',
+        card_archived: 'log-badge-archived',
+        card_unarchived: 'log-badge-unarchived',
+        card_deleted: 'log-badge-deleted'
+    };
+
+    return classes[action] || 'log-badge-default';
+}
+
+function shortenLogText(value, max = 90) {
+    const text = String(value || '').trim();
+    if (!text) return '-';
+    if (text.length <= max) return text;
+    return `${text.slice(0, max - 1)}...`;
+}
+
+function formatLogDetails(details) {
+    const text = String(details || '').trim();
+    if (!text) return '-';
+
+    const fieldMatch = text.match(/^Campo "([^"]+)" alterado$/i);
+    if (fieldMatch) {
+        return `Campo "${buildLogFieldLabel(fieldMatch[1])}" alterado`;
+    }
+
+    const moveFieldMatch = text.match(/^Campo "([^"]+)" alterado ao mover card$/i);
+    if (moveFieldMatch) {
+        return `Campo "${buildLogFieldLabel(moveFieldMatch[1])}" alterado ao mover card`;
+    }
+
+    return text;
+}
+
+async function loadLogs(filters = {}) {
+    const listEl = document.getElementById('logs-list');
+    const pageInfoEl = document.getElementById('logs-page-info');
+    const prevBtn = document.getElementById('logs-prev-page-btn');
+    const nextBtn = document.getElementById('logs-next-page-btn');
+    if (!listEl) return;
+
+    try {
+        const mergedFilters = {
+            ...logsState.lastFilters,
+            ...filters
+        };
+        logsState.lastFilters = mergedFilters;
+
+        const params = new URLSearchParams();
+        if (mergedFilters.q) params.set('q', mergedFilters.q);
+        if (mergedFilters.action) params.set('action', mergedFilters.action);
+        if (mergedFilters.date_from) params.set('date_from', mergedFilters.date_from);
+        if (mergedFilters.date_to) params.set('date_to', mergedFilters.date_to);
+        params.set('page', String(logsState.page));
+        params.set('per_page', String(logsState.perPage));
+
+        let url = `${API_URL}/logs`;
+        const queryString = params.toString();
+        if (queryString) {
+            url += `&${queryString}`;
+        }
+
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Falha ao carregar logs');
+
+        const payload = await response.json();
+        const logs = Array.isArray(payload) ? payload : (payload.items || []);
+        const pagination = Array.isArray(payload)
+            ? { page: 1, total_pages: 1, total_rows: logs.length, per_page: logs.length || logsState.perPage }
+            : (payload.pagination || {});
+
+        logsState.page = Number(pagination.page || logsState.page || 1);
+        logsState.totalPages = Math.max(1, Number(pagination.total_pages || 1));
+        logsState.perPage = Number(pagination.per_page || logsState.perPage || 10);
+
+        if (pageInfoEl) {
+            const totalRows = Number(pagination.total_rows || logs.length || 0);
+            pageInfoEl.textContent = `Pagina ${logsState.page} de ${logsState.totalPages} (${totalRows} registros)`;
+        }
+        if (prevBtn) prevBtn.disabled = logsState.page <= 1;
+        if (nextBtn) nextBtn.disabled = logsState.page >= logsState.totalPages;
+
+        if (!Array.isArray(logs) || logs.length === 0) {
+            listEl.innerHTML = '<p class="logs-empty">Nenhum log encontrado.</p>';
+            return;
+        }
+
+        listEl.innerHTML = `
+            <div class="logs-table-wrap">
+                <table class="logs-table">
+                    <thead>
+                        <tr>
+                            <th class="log-th-date">Data</th>
+                            <th class="log-th-action">Acao</th>
+                            <th class="log-th-card">Card</th>
+                            <th class="log-th-field">Campo</th>
+                            <th class="log-th-old">De</th>
+                            <th class="log-th-new">Para</th>
+                            <th class="log-th-details">Detalhes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${logs.map(log => {
+                            const actionLabel = buildLogActionLabel(log.action);
+                            const actionClass = buildLogActionClass(log.action);
+                            const fromValue = (log.from_column || log.old_value || '-');
+                            const toValue = (log.to_column || log.new_value || '-');
+                            const detailsValue = formatLogDetails(log.details);
+                            const cardTitle = log.card_title || 'Card sem titulo';
+                            const fieldName = buildLogFieldLabel(log.field_name);
+
+                            return `
+                                <tr>
+                                    <td class="log-cell-date">${escapeHtml(formatDateTimeBR(log.created_at) || '-')}</td>
+                                    <td class="log-col-action"><span class="log-badge ${actionClass}">${escapeHtml(actionLabel)}</span></td>
+                                    <td class="log-col-card" title="${escapeHtml(cardTitle)}">${escapeHtml(shortenLogText(cardTitle, 72))}</td>
+                                    <td class="log-col-field">${escapeHtml(fieldName)}</td>
+                                    <td class="log-col-old" title="${escapeHtml(String(fromValue))}">${escapeHtml(shortenLogText(fromValue, 110))}</td>
+                                    <td class="log-col-new" title="${escapeHtml(String(toValue))}">${escapeHtml(shortenLogText(toValue, 110))}</td>
+                                    <td class="log-col-details" title="${escapeHtml(String(detailsValue))}">${escapeHtml(shortenLogText(detailsValue, 160))}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    } catch (error) {
+        console.error('Error loading logs:', error);
+        listEl.innerHTML = '<p class="logs-empty">Falha ao carregar logs.</p>';
+        if (pageInfoEl) pageInfoEl.textContent = 'Pagina 1 de 1';
+        if (prevBtn) prevBtn.disabled = true;
+        if (nextBtn) nextBtn.disabled = true;
+    }
 }
 
 function setCardDataset(cardEl, cardData, fallbackColumnId) {
