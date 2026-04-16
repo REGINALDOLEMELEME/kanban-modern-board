@@ -1111,7 +1111,7 @@ body {
 
 .log-th-action,
 .log-col-action {
-    width: 120px;
+    width: 150px;
 }
 
 .log-th-card,
@@ -1137,8 +1137,7 @@ body {
 }
 
 .log-badge {
-    display: inline-flex;
-    align-items: center;
+    display: inline-block;
     border-radius: 999px;
     padding: 3px 9px;
     font-size: 10px;
@@ -1146,7 +1145,12 @@ body {
     letter-spacing: 0.03em;
     text-transform: uppercase;
     border: 1px solid transparent;
-    white-space: nowrap;
+    white-space: normal;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    text-align: center;
+    line-height: 1.2;
 }
 
 .log-badge-created {
