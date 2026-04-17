@@ -423,9 +423,13 @@ function isBlockedColumnTitle(title) {
     return normalizeColumnTitle(title) === 'blocked';
 }
 
+function isDoneColumnTitle(title) {
+    return normalizeColumnTitle(title) === 'done';
+}
+
 function isDoneColumnElement(columnEl) {
     const title = columnEl?.querySelector('.column-title')?.textContent || '';
-    return normalizeColumnTitle(title) === 'done';
+    return isDoneColumnTitle(title);
 }
 
 function getPriorityRank(priority) {
@@ -541,7 +545,7 @@ function renderBoard(columnsData) {
 
         if (sortedCards.length > 0) {
             sortedCards.forEach(cardData => {
-                if (isDueToday(cardData.due_date)) {
+                if (isDueToday(cardData.due_date) && !isDoneColumnTitle(columnData.title)) {
                     dueTodayCards.push({
                         title: cardData.content,
                         columnTitle: columnData.title
