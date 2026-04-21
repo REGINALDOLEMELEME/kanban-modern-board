@@ -1192,6 +1192,35 @@ body {
     }
 }
 
+#confirm-modal .confirm-modal-panel {
+    width: min(440px, 100%);
+    padding: 24px;
+}
+
+.confirm-modal-title {
+    margin: 0 0 8px;
+    font-size: 18px;
+    color: var(--ink);
+}
+
+.confirm-modal-message {
+    margin: 0 0 18px;
+    color: #3c5366;
+    font-size: 14px;
+    line-height: 1.45;
+    white-space: pre-line;
+}
+
+.confirm-modal-actions {
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.confirm-modal-actions .save-card-btn,
+.confirm-modal-actions .danger-btn {
+    min-width: 96px;
+}
+
 .logs-table-wrap {
     border: 1px solid #d8e8f4;
     border-radius: 10px;

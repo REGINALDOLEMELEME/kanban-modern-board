@@ -252,7 +252,18 @@
         </div>
     </div>
 
-    <script src="script.js?v=20260420-2"></script>
+    <div id="confirm-modal" class="blocked-modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+        <div class="blocked-modal-panel confirm-modal-panel">
+            <h3 id="confirm-modal-title" class="confirm-modal-title">Confirmar</h3>
+            <p id="confirm-modal-message" class="confirm-modal-message"></p>
+            <div class="blocked-modal-actions confirm-modal-actions">
+                <button id="confirm-modal-ok-btn" class="save-card-btn" type="button">OK</button>
+                <button id="confirm-modal-cancel-btn" class="cancel-card-btn" type="button" aria-label="Cancelar">X</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js?v=20260420-3"></script>
 </body>
 </html>
 

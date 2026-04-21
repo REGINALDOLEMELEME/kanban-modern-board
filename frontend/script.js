@@ -22,6 +22,71 @@ const templatesState = {
     loaded: false
 };
 
+function openConfirmModal(options = {}) {
+    const modal = document.getElementById('confirm-modal');
+    const titleEl = document.getElementById('confirm-modal-title');
+    const messageEl = document.getElementById('confirm-modal-message');
+    const okBtn = document.getElementById('confirm-modal-ok-btn');
+    const cancelBtn = document.getElementById('confirm-modal-cancel-btn');
+
+    if (!modal || !titleEl || !messageEl || !okBtn || !cancelBtn) {
+        // Fallback if DOM isn't wired (defensive — should never trigger).
+        return Promise.resolve(window.confirm(options.message || ''));
+    }
+
+    const {
+        title = 'Confirmar',
+        message = '',
+        confirmLabel = 'Confirmar',
+        cancelLabel = 'Cancelar',
+        variant = 'primary', // 'primary' | 'danger'
+        mode = 'confirm',    // 'confirm' | 'alert'
+    } = options;
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    okBtn.textContent = confirmLabel;
+    cancelBtn.setAttribute('aria-label', cancelLabel);
+
+    okBtn.classList.toggle('save-card-btn', variant !== 'danger');
+    okBtn.classList.toggle('danger-btn', variant === 'danger');
+
+    cancelBtn.classList.toggle('hidden', mode === 'alert');
+
+    modal.classList.remove('hidden');
+    setTimeout(() => okBtn.focus(), 0);
+
+    return new Promise(resolve => {
+        const cleanup = () => {
+            modal.classList.add('hidden');
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            document.removeEventListener('keydown', onKey);
+        };
+
+        const onOk = () => { cleanup(); resolve(true); };
+        const onCancel = () => { cleanup(); resolve(false); };
+        const onKey = event => {
+            if (event.key === 'Escape') { event.preventDefault(); onCancel(); }
+            else if (event.key === 'Enter') { event.preventDefault(); onOk(); }
+        };
+
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        document.addEventListener('keydown', onKey);
+    });
+}
+
+function openAlertModal(options = {}) {
+    return openConfirmModal({
+        title: 'Aviso',
+        confirmLabel: 'OK',
+        ...options,
+        mode: 'alert',
+        variant: options.variant || 'primary',
+    });
+}
+
 function showToast(message, type = 'error') {
     let container = document.getElementById('toast-container');
     if (!container) {
@@ -148,7 +213,13 @@ function setupTemplatesMenu() {
         deleteBtn.addEventListener('click', async () => {
             const id = document.getElementById('template-id-input').value;
             if (!id) return;
-            if (!confirm('Excluir este modelo? Os cards já criados não serão afetados.')) return;
+            const ok = await openConfirmModal({
+                title: 'Excluir modelo',
+                message: 'Excluir este modelo?\nOs cards já criados não serão afetados.',
+                confirmLabel: 'Excluir',
+                variant: 'danger'
+            });
+            if (!ok) return;
             await deleteTemplate(id);
             await loadTemplates();
             renderTemplatesList();
@@ -1378,7 +1449,13 @@ function createCardElement(cardData, template, fallbackColumnId) {
     const deleteBtn = clone.querySelector('.delete-card-btn');
     deleteBtn.addEventListener('click', async event => {
         event.stopPropagation();
-        if (confirm('Tem certeza que deseja remover este card?')) {
+        const ok = await openConfirmModal({
+            title: 'Remover card',
+            message: `Tem certeza que deseja remover o card "${cardData.content || ''}"?\nEsta ação não pode ser desfeita.`,
+            confirmLabel: 'Remover',
+            variant: 'danger'
+        });
+        if (ok) {
             await deleteCard(cardData.id, cardEl);
         }
     });
