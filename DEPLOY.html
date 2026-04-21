@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Deploy — Quadro Kanban · Release 2026-04-20</title>
+<style>
+    :root {
+        --ink: #1a2b3c;
+        --ink-soft: #4a6073;
+        --bg-start: #eef5fb;
+        --bg-end: #e5edf7;
+        --panel: #ffffffcc;
+        --line: #d8e1e8;
+        --accent: #0e9fcb;
+        --accent-strong: #0b7aa0;
+        --ok: #1f8b4c;
+        --warn: #8a5a17;
+        --danger: #b42323;
+        --danger-soft: #fff5f5;
+        --radius-lg: 18px;
+        --radius-md: 12px;
+        --radius-sm: 10px;
+        --shadow: 0 12px 28px rgba(16, 42, 67, 0.08);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+        font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: var(--ink);
+        background:
+            radial-gradient(circle at 10% 10%, #b7ecff 0, transparent 40%),
+            radial-gradient(circle at 85% 20%, #ffe7c4 0, transparent 35%),
+            linear-gradient(140deg, var(--bg-start), var(--bg-end));
+        min-height: 100vh;
+        padding: 32px 20px 60px;
+    }
+    .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+    }
+    header.top {
+        background: var(--panel);
+        border: 1px solid rgba(255,255,255,0.75);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+        border-radius: var(--radius-lg);
+        padding: 22px 26px;
+        margin-bottom: 20px;
+    }
+    .kicker {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+    }
+    h1 {
+        margin: 4px 0 6px;
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 28px;
+    }
+    .meta-line {
+        color: var(--ink-soft);
+        font-size: 14px;
+    }
+    .tag {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+    .tag-release { background: #e7f6fc; color: var(--accent-strong); border: 1px solid #bce1ee; }
+    .tag-downtime { background: #eafaf1; color: var(--ok); border: 1px solid #bfe6cf; }
+    .tag-warn { background: #fff4de; color: var(--warn); border: 1px solid #f0d9a6; }
+    .tag-danger { background: var(--danger-soft); color: var(--danger); border: 1px solid #f3c7c7; }
+    .tags { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+
+    nav.toc {
+        background: var(--panel);
+        border: 1px solid rgba(255,255,255,0.75);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow);
+        padding: 16px 20px;
+        margin-bottom: 20px;
+    }
+    nav.toc strong { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+    nav.toc ol { margin: 8px 0 0; padding-left: 22px; }
+    nav.toc li { margin: 3px 0; font-size: 14px; }
+    nav.toc a { color: var(--accent-strong); text-decoration: none; }
+    nav.toc a:hover { text-decoration: underline; }
+
+    .card {
+        background: var(--panel);
+        border: 1px solid rgba(255,255,255,0.75);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow);
+        padding: 22px 26px;
+        margin-bottom: 16px;
+    }
+    .card h2 {
+        margin: 0 0 10px;
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .card h2 .step-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 34px;
+        height: 34px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: linear-gradient(140deg, var(--accent), var(--accent-strong));
+        color: #fff;
+        font-weight: 800;
+        font-size: 14px;
+    }
+    .card h3 { margin: 16px 0 6px; font-size: 15px; color: var(--ink); }
+    .card p { line-height: 1.5; color: #24485f; }
+    .card ul { line-height: 1.5; }
+
+    .checklist {
+        list-style: none;
+        padding: 0;
+        margin: 10px 0 6px;
+    }
+    .checklist li {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 8px 10px;
+        border: 1px solid #e3ebf1;
+        border-radius: var(--radius-sm);
+        background: #fbfdff;
+        margin-bottom: 6px;
+        transition: background 120ms ease;
+    }
+    .checklist li.done {
+        background: #f3faf5;
+        border-color: #c8e5d3;
+    }
+    .checklist li.done span.text {
+        color: var(--ok);
+        text-decoration: line-through;
+    }
+    .checklist input[type="checkbox"] {
+        margin-top: 3px;
+        transform: scale(1.1);
+        accent-color: var(--accent);
+        cursor: pointer;
+    }
+    .checklist span.text {
+        color: #24485f;
+        font-size: 14px;
+    }
+
+    pre {
+        position: relative;
+        background: #0f2233;
+        color: #e4f0fa;
+        padding: 14px 16px;
+        padding-right: 92px;
+        border-radius: var(--radius-md);
+        font-family: 'SF Mono', ui-monospace, Consolas, monospace;
+        font-size: 12.5px;
+        line-height: 1.5;
+        overflow-x: auto;
+        white-space: pre;
+    }
+    pre code { background: transparent; padding: 0; color: inherit; }
+    .copy-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: rgba(255,255,255,0.12);
+        color: #e4f0fa;
+        border: 1px solid rgba(255,255,255,0.2);
+        padding: 4px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 11px;
+        font-family: inherit;
+        font-weight: 700;
+    }
+    .copy-btn:hover { background: rgba(255,255,255,0.24); }
+    .copy-btn.copied { background: rgba(31,139,76,0.4); border-color: rgba(31,139,76,0.6); }
+
+    code.inline {
+        background: #eef4f9;
+        color: var(--accent-strong);
+        padding: 2px 6px;
+        border-radius: 6px;
+        font-family: 'SF Mono', ui-monospace, Consolas, monospace;
+        font-size: 12.5px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 10px 0;
+        font-size: 13.5px;
+    }
+    table th, table td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid #e3ebf1;
+        vertical-align: top;
+    }
+    table th {
+        background: #eef6fb;
+        color: var(--ink-soft);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    table tr:nth-child(even) td { background: #fafdff; }
+
+    .callout {
+        display: flex;
+        gap: 12px;
+        border-radius: var(--radius-md);
+        padding: 12px 14px;
+        margin: 12px 0;
+        font-size: 13.5px;
+        line-height: 1.5;
+    }
+    .callout .icon {
+        flex-shrink: 0;
+        font-weight: 800;
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+    }
+    .callout.info     { background: #eaf5fb; border: 1px solid #bce1ee; color: #165d77; }
+    .callout.info .icon     { background: #0e9fcb; color: #fff; }
+    .callout.warn     { background: #fff4de; border: 1px solid #f0d9a6; color: #6a4612; }
+    .callout.warn .icon     { background: #d49538; color: #fff; }
+    .callout.danger   { background: var(--danger-soft); border: 1px solid #f3c7c7; color: #8f1616; }
+    .callout.danger .icon   { background: var(--danger); color: #fff; }
+    .callout.success  { background: #eafaf1; border: 1px solid #bfe6cf; color: #155d35; }
+    .callout.success .icon  { background: var(--ok); color: #fff; }
+
+    .file-list {
+        list-style: none;
+        padding: 0;
+        margin: 8px 0;
+    }
+    .file-list li {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-bottom: 1px dashed #e3ebf1;
+        font-size: 13px;
+    }
+    .file-list li code { font-size: 12px; }
+    .file-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+    .file-dot.green  { background: var(--ok); }
+    .file-dot.red    { background: var(--danger); }
+    .file-dot.blue   { background: var(--accent); }
+
+    footer {
+        text-align: center;
+        font-size: 12px;
+        color: var(--ink-soft);
+        margin-top: 30px;
+        line-height: 1.6;
+    }
+
+    .progress {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--panel);
+        border: 1px solid rgba(255,255,255,0.75);
+        border-radius: var(--radius-lg);
+        padding: 12px 16px;
+        margin-bottom: 16px;
+        box-shadow: var(--shadow);
+    }
+    .progress-bar {
+        flex: 1;
+        height: 10px;
+        border-radius: 999px;
+        background: #e3ebf1;
+        overflow: hidden;
+    }
+    .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(140deg, var(--accent), var(--accent-strong));
+        width: 0%;
+        transition: width 200ms ease;
+    }
+    .progress-label {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--ink-soft);
+        white-space: nowrap;
+    }
+    .progress-reset {
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--ink-soft);
+        border-radius: 8px;
+        padding: 4px 10px;
+        font-size: 11px;
+        cursor: pointer;
+    }
+    .progress-reset:hover { color: var(--ink); }
+
+    @media print {
+        body { background: #fff; padding: 0; }
+        .wrap { max-width: 100%; }
+        .card, header.top, nav.toc, .progress { box-shadow: none; border: 1px solid #d8e1e8; background: #fff; }
+        pre { background: #f5f8fa; color: #1a2b3c; border: 1px solid #d8e1e8; }
+        .copy-btn, .progress-reset { display: none; }
+    }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+    <header class="top">
+        <p class="kicker">Plano de deploy</p>
+        <h1>Quadro Kanban — Release 2026-04-20</h1>
+        <p class="meta-line">Documento de passo a passo para o desenvolvedor responsável pelo upload das mudanças no servidor em produção.</p>
+        <div class="tags">
+            <span class="tag tag-release">5 commits</span>
+            <span class="tag tag-downtime">Sem downtime obrigatório</span>
+            <span class="tag tag-warn">Migra banco de dados</span>
+        </div>
+    </header>
+
+    <div class="progress" aria-label="Progresso do deploy">
+        <div class="progress-bar"><div class="progress-bar-fill" id="progress-fill"></div></div>
+        <div class="progress-label" id="progress-label">0 de 0 itens concluídos</div>
+        <button class="progress-reset" type="button" id="progress-reset">Limpar progresso</button>
+    </div>
+
+    <nav class="toc">
+        <strong>Sumário</strong>
+        <ol>
+            <li><a href="#resumo">Resumo das mudanças</a></li>
+            <li><a href="#prereq">Pré-requisitos e backup</a></li>
+            <li><a href="#migracao">Migração do banco</a></li>
+            <li><a href="#upload">Upload dos arquivos</a></li>
+            <li><a href="#smoke">Smoke test pós-deploy</a></li>
+            <li><a href="#notas">Notas importantes (CORS, cache, layout)</a></li>
+            <li><a href="#rollback">Plano de rollback</a></li>
+            <li><a href="#commits">Commits inclusos</a></li>
+        </ol>
+    </nav>
+
+    <!-- ─── Seção 1 ─── -->
+    <section class="card" id="resumo">
+        <h2><span class="step-num">1</span> Resumo das mudanças</h2>
+        <table>
+            <thead>
+                <tr><th>Área</th><th>O que mudou</th><th>Exige migração?</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Banco</strong></td>
+                    <td>Nova tabela <code class="inline">card_templates</code> (obrigatória). <code class="inline">change_logs</code> agora precisa existir no schema (antes era criada em runtime pelo PHP).</td>
+                    <td><span class="tag tag-warn">Sim — passo 3</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Backend PHP</strong></td>
+                    <td>Novas rotas CRUD <code class="inline">/templates</code>, nova rota <code class="inline">/columns/:id/order</code>, <code class="inline">/cards/:id/move</code> reindexa <code class="inline">order_index</code>, CORS restrito, <code class="inline">APP_DEBUG</code> opcional, <code class="inline">error_log</code> em toda 500, <code class="inline">ensureChangeLogsTable()</code> removido.</td>
+                    <td>Upload novo <code class="inline">api/index.php</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Frontend</strong></td>
+                    <td>Aba "Modelos", dropdown de modelo em Novo card, modal moderno de confirmação no lugar de <code class="inline">confirm()</code>, botões de fechar padronizados em X vermelho, título da aba "Quadro Kanban", drop-zone completa da coluna no drag horizontal.</td>
+                    <td>Upload <code class="inline">index.html</code>, <code class="inline">script.js</code>, <code class="inline">style.css</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Config</strong></td>
+                    <td><code class="inline">config.php</code> deixou de ser versionado — <strong>não subir o arquivo do repo</strong>. O do servidor já está certo.</td>
+                    <td>—</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- ─── Seção 2 ─── -->
+    <section class="card" id="prereq">
+        <h2><span class="step-num">2</span> Pré-requisitos e backup</h2>
+        <h3>Checklist antes de começar</h3>
+        <ul class="checklist" data-persist="prereq">
+            <li><input type="checkbox" id="c-prereq-1"><label for="c-prereq-1"><span class="text">Acesso ao <strong>phpMyAdmin</strong> (ou SSH com <code class="inline">mysql</code> CLI) no banco <code class="inline">kanban_db</code>.</span></label></li>
+            <li><input type="checkbox" id="c-prereq-2"><label for="c-prereq-2"><span class="text">Acesso ao <strong>FTP / SFTP / painel de arquivos</strong> do servidor web.</span></label></li>
+            <li><input type="checkbox" id="c-prereq-3"><label for="c-prereq-3"><span class="text">URL de produção em mãos (ex.: <code class="inline">https://quadro.empresa.com</code>).</span></label></li>
+            <li><input type="checkbox" id="c-prereq-4"><label for="c-prereq-4"><span class="text">5 arquivos desta release copiados localmente: <code class="inline">backend2/api/index.php</code>, <code class="inline">backend2/migrations/2026-04-20_templates_and_logs.sql</code>, <code class="inline">frontend/index.html</code>, <code class="inline">frontend/script.js</code>, <code class="inline">frontend/style.css</code>.</span></label></li>
+        </ul>
+
+        <h3>Backup do banco</h3>
+        <p>No phpMyAdmin → seleciona o banco <code class="inline">kanban_db</code> → aba <strong>Exportar</strong> → método "Rápido" → formato SQL → <strong>Executar</strong>. Guarda o arquivo como <code class="inline">kanban_db_backup_2026-04-20.sql</code>.</p>
+        <p>Via CLI:</p>
+        <pre><button class="copy-btn" type="button">Copiar</button><code>mysqldump -u USER -p kanban_db > kanban_db_backup_2026-04-20.sql</code></pre>
+        <ul class="checklist" data-persist="prereq-backup">
+            <li><input type="checkbox" id="c-backup"><label for="c-backup"><span class="text">Backup do banco feito e salvo em local seguro.</span></label></li>
+        </ul>
+    </section>
+
+    <!-- ─── Seção 3 ─── -->
+    <section class="card" id="migracao">
+        <h2><span class="step-num">3</span> Migração do banco</h2>
+        <div class="callout warn">
+            <span class="icon">!</span>
+            <div><strong>Ordem importa.</strong> Rode o SQL <em>antes</em> de subir o PHP. Se subir o PHP primeiro, as rotas <code class="inline">/logs</code> e <code class="inline">/templates</code> vão retornar 500 até as tabelas existirem.</div>
+        </div>
+
+        <ol>
+            <li>Abre o phpMyAdmin e seleciona <code class="inline">kanban_db</code> na lateral esquerda.</li>
+            <li>Clica na aba <strong>SQL</strong>.</li>
+            <li>Cola o conteúdo do arquivo <code class="inline">backend2/migrations/2026-04-20_templates_and_logs.sql</code> (ou usa <strong>Importar</strong> e envia o arquivo).</li>
+            <li>Clica em <strong>Executar</strong>. Deve aparecer "A sua consulta foi executada com êxito".</li>
+        </ol>
+
+        <div class="callout info">
+            <span class="icon">i</span>
+            <div>O script é idempotente (usa <code class="inline">CREATE TABLE IF NOT EXISTS</code> e <code class="inline">INSERT IGNORE</code>). Rodar duas vezes não quebra nada nem duplica dados.</div>
+        </div>
+
+        <h3>Verificação rápida</h3>
+        <p>Executa no SQL do phpMyAdmin para confirmar:</p>
+        <pre><button class="copy-btn" type="button">Copiar</button><code>SHOW TABLES LIKE 'card_templates';
+SHOW TABLES LIKE 'change_logs';
+SELECT COUNT(*) AS modelos FROM card_templates;</code></pre>
+        <p>Esperado: as duas tabelas aparecendo e <code class="inline">modelos = 3</code> (ou mais, se você já tinha alguma).</p>
+
+        <ul class="checklist" data-persist="migracao">
+            <li><input type="checkbox" id="c-mig-1"><label for="c-mig-1"><span class="text">SQL executado sem erro no phpMyAdmin.</span></label></li>
+            <li><input type="checkbox" id="c-mig-2"><label for="c-mig-2"><span class="text">Tabelas <code class="inline">card_templates</code> e <code class="inline">change_logs</code> existem.</span></label></li>
+            <li><input type="checkbox" id="c-mig-3"><label for="c-mig-3"><span class="text"><code class="inline">SELECT COUNT(*) FROM card_templates</code> retornou ≥ 3.</span></label></li>
+        </ul>
+    </section>
+
+    <!-- ─── Seção 4 ─── -->
+    <section class="card" id="upload">
+        <h2><span class="step-num">4</span> Upload dos arquivos</h2>
+
+        <div class="callout warn">
+            <span class="icon">!</span>
+            <div><strong>Ordem recomendada:</strong> backend primeiro, frontend depois. Assim um usuário que abre o navegador no meio do deploy não pega HTML novo apontando para rotas que ainda não existem.</div>
+        </div>
+
+        <h3>4.1 · Backend (1 arquivo)</h3>
+        <ul class="file-list">
+            <li><span class="file-dot green"></span><div><strong>Substituir:</strong> <code class="inline">backend2/api/index.php</code></div></li>
+        </ul>
+
+        <h3>4.2 · Frontend (3 arquivos)</h3>
+        <ul class="file-list">
+            <li><span class="file-dot blue"></span><div><strong>Substituir:</strong> <code class="inline">frontend/index.html</code></div></li>
+            <li><span class="file-dot blue"></span><div><strong>Substituir:</strong> <code class="inline">frontend/script.js</code></div></li>
+            <li><span class="file-dot blue"></span><div><strong>Substituir:</strong> <code class="inline">frontend/style.css</code></div></li>
+        </ul>
+
+        <h3>⚠ Arquivos que NÃO devem ser enviados</h3>
+        <ul class="file-list">
+            <li><span class="file-dot red"></span><div><code class="inline">backend2/config.php</code> — o do servidor já tem as credenciais de produção. Se subir o do repo, a app para imediatamente.</div></li>
+            <li><span class="file-dot red"></span><div><code class="inline">backend2/database_dump.sql</code> — é a seed de desenvolvimento. Vai derrubar e recriar o banco inteiro.</div></li>
+        </ul>
+
+        <div class="callout info">
+            <span class="icon">i</span>
+            <div>Antes de sobrescrever cada arquivo no servidor, renomeie o atual para <code class="inline">nome-do-arquivo.old</code>. Isso facilita o rollback caso algo dê errado.</div>
+        </div>
+
+        <ul class="checklist" data-persist="upload">
+            <li><input type="checkbox" id="c-upl-1"><label for="c-upl-1"><span class="text">Cópias <code class="inline">.old</code> dos 4 arquivos originais criadas no servidor.</span></label></li>
+            <li><input type="checkbox" id="c-upl-2"><label for="c-upl-2"><span class="text"><code class="inline">backend2/api/index.php</code> substituído.</span></label></li>
+            <li><input type="checkbox" id="c-upl-3"><label for="c-upl-3"><span class="text"><code class="inline">frontend/index.html</code> substituído.</span></label></li>
+            <li><input type="checkbox" id="c-upl-4"><label for="c-upl-4"><span class="text"><code class="inline">frontend/script.js</code> substituído.</span></label></li>
+            <li><input type="checkbox" id="c-upl-5"><label for="c-upl-5"><span class="text"><code class="inline">frontend/style.css</code> substituído.</span></label></li>
+            <li><input type="checkbox" id="c-upl-6"><label for="c-upl-6"><span class="text">Confirmado que <code class="inline">config.php</code> e <code class="inline">database_dump.sql</code> do repo NÃO foram enviados.</span></label></li>
+        </ul>
+    </section>
+
+    <!-- ─── Seção 5 ─── -->
+    <section class="card" id="smoke">
+        <h2><span class="step-num">5</span> Smoke test pós-deploy</h2>
+        <p>Abra a URL de produção em uma janela anônima (Ctrl+Shift+N) para evitar cache antigo. Percorra cada item:</p>
+
+        <ul class="checklist" data-persist="smoke">
+            <li><input type="checkbox" id="c-smk-1"><label for="c-smk-1"><span class="text">Aba do navegador mostra <strong>"Quadro Kanban"</strong>.</span></label></li>
+            <li><input type="checkbox" id="c-smk-2"><label for="c-smk-2"><span class="text">O quadro carrega com os cards existentes nas colunas corretas.</span></label></li>
+            <li><input type="checkbox" id="c-smk-3"><label for="c-smk-3"><span class="text">Topbar mostra os botões: Modelos · Logs · Arquivados · Exportar PDF · Colapsar todos.</span></label></li>
+            <li><input type="checkbox" id="c-smk-4"><label for="c-smk-4"><span class="text">Clicar em <strong>Modelos</strong> abre o painel com os 3 modelos seed (Bug report, Nova feature, Reunião).</span></label></li>
+            <li><input type="checkbox" id="c-smk-5"><label for="c-smk-5"><span class="text">Em qualquer coluna, <strong>+ Novo card</strong> exibe o campo "Modelo (opcional)". Ao selecionar "Bug report", os campos se preenchem.</span></label></li>
+            <li><input type="checkbox" id="c-smk-6"><label for="c-smk-6"><span class="text">Arrastar um card de lado para outra coluna (sem alinhar verticalmente) funciona.</span></label></li>
+            <li><input type="checkbox" id="c-smk-7"><label for="c-smk-7"><span class="text">Arrastar um card para <strong>Blocked</strong> e cancelar o modal — o card volta sozinho.</span></label></li>
+            <li><input type="checkbox" id="c-smk-8"><label for="c-smk-8"><span class="text">Clicar no <strong>×</strong> de um card abre o modal moderno "Remover card" com botão vermelho.</span></label></li>
+            <li><input type="checkbox" id="c-smk-9"><label for="c-smk-9"><span class="text">Em Modelos, criar/editar/<strong>Excluir</strong> modelo — o fluxo usa o modal de confirmação moderno.</span></label></li>
+            <li><input type="checkbox" id="c-smk-10"><label for="c-smk-10"><span class="text">Em Logs, a listagem aparece e a paginação muda de página.</span></label></li>
+        </ul>
+
+        <h3>Monitorar erros na primeira hora</h3>
+        <p>Deixe aberto o <strong>error log do PHP</strong> (cPanel → "Errors" ou <code class="inline">tail -f error_log</code>). Qualquer 500 imprevisto aparece lá com o prefixo <code class="inline">[kanban]</code> — o código novo escreve toda exceção não tratada.</p>
+
+        <div class="callout info">
+            <span class="icon">i</span>
+            <div><strong>Modo debug temporário:</strong> se aparecerem 500s misteriosos, ative <code class="inline">APP_DEBUG=1</code> no servidor (no <code class="inline">.htaccess</code>: <code class="inline">SetEnv APP_DEBUG 1</code>). Nesse modo a API passa a devolver <code class="inline">message/file/line</code> no JSON. <strong>Desligue depois</strong> — essas informações não devem ficar expostas em produção.</div>
+        </div>
+    </section>
+
+    <!-- ─── Seção 6 ─── -->
+    <section class="card" id="notas">
+        <h2><span class="step-num">6</span> Notas importantes</h2>
+
+        <h3>6.1 · CORS restringido</h3>
+        <p>A versão nova <strong>não</strong> usa mais <code class="inline">Access-Control-Allow-Origin: *</code>. Ela mantém uma allow-list fixa (<code class="inline">http://127.0.0.1:8787</code>, <code class="inline">http://localhost:8787</code>) mais o que estiver na env var <code class="inline">KANBAN_ALLOWED_ORIGINS</code>.</p>
+        <ul>
+            <li><strong>Se UI e API estão no mesmo domínio</strong> (caso normal em produção): o browser não envia o header <code class="inline">Origin</code> em GETs, o CORS não é aplicado, <strong>não precisa configurar nada</strong>.</li>
+            <li><strong>Se UI e API ficam em domínios diferentes</strong>: configura no servidor web do backend:</li>
+        </ul>
+        <pre><button class="copy-btn" type="button">Copiar</button><code># .htaccess (ou equivalente em Nginx/Caddy)
+SetEnv KANBAN_ALLOWED_ORIGINS "https://app.empresa.com"
+
+# múltiplos separados por vírgula
+SetEnv KANBAN_ALLOWED_ORIGINS "https://app.empresa.com,https://admin.empresa.com"</code></pre>
+
+        <h3>6.2 · URL da API resolvida no cliente</h3>
+        <p>O <code class="inline">script.js</code> monta a URL da API a partir de <code class="inline">window.location</code>:</p>
+        <pre><button class="copy-btn" type="button">Copiar</button><code>`${origin}${appBase}backend2/api/index.php?route=...`</code></pre>
+        <p>Onde <code class="inline">appBase</code> é o pedaço do caminho antes de <code class="inline">/frontend/</code>. Isso significa que a estrutura de pastas no servidor precisa ser a mesma do repo (pasta <code class="inline">frontend/</code> e pasta <code class="inline">backend2/</code> <strong>irmãs</strong> dentro da raiz do site).</p>
+        <p>Para conferir, DevTools → aba <strong>Network</strong> → clica em criar card → a request deve bater em <code class="inline">https://seu-dominio/.../backend2/api/index.php?route=/cards</code>.</p>
+
+        <h3>6.3 · Browser cache</h3>
+        <p>Se algum usuário relatar "nada mudou", peça para ele dar <strong>Ctrl+F5</strong>. O <code class="inline">?v=20260420-3</code> no <code class="inline">index.html</code> já força, mas alguns proxies corporativos teimam.</p>
+
+        <h3>6.4 · Compatibilidade com dados existentes</h3>
+        <ul>
+            <li>Todos os cards antigos continuam funcionando — as mudanças de schema são <strong>aditivas</strong>.</li>
+            <li><code class="inline">order_index</code> das cards antigas não precisa ser remapeado. Qualquer colisão pré-existente se resolve naturalmente na próxima reordenação por drag.</li>
+            <li>A tabela <code class="inline">change_logs</code> preserva todo o histórico existente. Se já foi criada automaticamente antes, o <code class="inline">CREATE TABLE IF NOT EXISTS</code> não a toca.</li>
+        </ul>
+    </section>
+
+    <!-- ─── Seção 7 ─── -->
+    <section class="card" id="rollback">
+        <h2><span class="step-num">7</span> Plano de rollback</h2>
+        <div class="callout danger">
+            <span class="icon">!</span>
+            <div>Se algo grave aparecer nos primeiros minutos, reverta <strong>antes</strong> de debugar. O debug vem depois, com calma.</div>
+        </div>
+
+        <ol>
+            <li>Renomeie os 4 arquivos substituídos para <code class="inline">.new</code> e renomeie os <code class="inline">.old</code> de volta aos nomes originais. O app volta para a versão anterior em segundos.</li>
+            <li>Se o banco ficou em estado estranho (raro — o SQL só adiciona tabelas novas):
+<pre><button class="copy-btn" type="button">Copiar</button><code>DROP TABLE IF EXISTS card_templates;
+-- NÃO dropar change_logs se ela já tinha dados antigos.</code></pre></li>
+            <li>Em último caso, restaure o backup do passo 2:
+<pre><button class="copy-btn" type="button">Copiar</button><code>mysql -u USER -p kanban_db &lt; kanban_db_backup_2026-04-20.sql</code></pre></li>
+            <li>Peça aos usuários <strong>Ctrl+F5</strong> para voltar a ver a versão antiga.</li>
+        </ol>
+    </section>
+
+    <!-- ─── Seção 8 ─── -->
+    <section class="card" id="commits">
+        <h2><span class="step-num">8</span> Commits inclusos nesta release</h2>
+        <table>
+            <thead>
+                <tr><th style="width:120px">Commit</th><th>Assunto</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code class="inline">efb88a0</code></td><td>Seed local test DB, persist drag order, harden backend2 API</td></tr>
+                <tr><td><code class="inline">641b459</code></td><td>Revert cancelled blocked move and widen column drop zones</td></tr>
+                <tr><td><code class="inline">128c360</code></td><td>Add reusable card templates with Modelos page and prefill picker</td></tr>
+                <tr><td><code class="inline">77888f6</code></td><td>Standardize close/delete buttons and rename browser tab</td></tr>
+                <tr><td><code class="inline">2581ca2</code></td><td>Replace native confirm() with in-app confirmation modal</td></tr>
+            </tbody>
+        </table>
+        <div class="callout success">
+            <span class="icon">✓</span>
+            <div>Tudo concluído? Salva este documento com o progresso preenchido (Ctrl+P → "Salvar como PDF") e anexa na tarefa/chamado do deploy. Boa rodada. 🚀</div>
+        </div>
+    </section>
+
+    <footer>
+        Gerado para release <strong>2026-04-20</strong>. Documento estático, pode ser aberto localmente sem servidor.<br>
+        O progresso dos checkboxes é salvo automaticamente no navegador (localStorage).
+    </footer>
+
+</div>
+
+<script>
+(function () {
+    // Copy-to-clipboard buttons
+    document.querySelectorAll('.copy-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var pre = btn.parentElement;
+            var code = pre.querySelector('code');
+            if (!code) return;
+            var text = code.textContent;
+            navigator.clipboard.writeText(text).then(function () {
+                btn.textContent = 'Copiado!';
+                btn.classList.add('copied');
+                setTimeout(function () {
+                    btn.textContent = 'Copiar';
+                    btn.classList.remove('copied');
+                }, 1400);
+            }).catch(function () {
+                btn.textContent = 'Falhou';
+                setTimeout(function () { btn.textContent = 'Copiar'; }, 1400);
+            });
+        });
+    });
+
+    // Persistent checkboxes + progress bar
+    var STORAGE_KEY = 'kanban-deploy-2026-04-20';
+    var state = {};
+    try {
+        state = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {};
+    } catch (e) { state = {}; }
+
+    var checkboxes = Array.prototype.slice.call(document.querySelectorAll('.checklist input[type="checkbox"]'));
+    checkboxes.forEach(function (cb) {
+        if (state[cb.id]) {
+            cb.checked = true;
+            cb.closest('li').classList.add('done');
+        }
+        cb.addEventListener('change', function () {
+            state[cb.id] = cb.checked;
+            cb.closest('li').classList.toggle('done', cb.checked);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            updateProgress();
+        });
+    });
+
+    var fill = document.getElementById('progress-fill');
+    var label = document.getElementById('progress-label');
+    function updateProgress() {
+        var total = checkboxes.length;
+        var done = checkboxes.filter(function (c) { return c.checked; }).length;
+        var pct = total ? Math.round(done / total * 100) : 0;
+        if (fill) fill.style.width = pct + '%';
+        if (label) label.textContent = done + ' de ' + total + ' itens concluídos (' + pct + '%)';
+    }
+    updateProgress();
+
+    var resetBtn = document.getElementById('progress-reset');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function () {
+            if (!confirm('Limpar todo o progresso salvo?')) return;
+            checkboxes.forEach(function (cb) {
+                cb.checked = false;
+                cb.closest('li').classList.remove('done');
+            });
+            localStorage.removeItem(STORAGE_KEY);
+            state = {};
+            updateProgress();
+        });
+    }
+})();
+</script>
+</body>
+</html>
