@@ -45,6 +45,19 @@ CREATE TABLE board_settings (
     name VARCHAR(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE card_templates (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    content TEXT NULL,
+    subject VARCHAR(255) NULL,
+    notes TEXT NULL,
+    priority ENUM('normal','ponderado','urgente') NOT NULL DEFAULT 'normal',
+    actions JSON NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_card_templates_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE change_logs (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     card_id INT NULL,
@@ -287,6 +300,44 @@ INSERT INTO change_logs (card_id, card_title, action, field_name, old_value, new
  (13, 'Configurar pipeline de CI inicial',                'card_archived',     NULL,           NULL,         NULL,       'Done',      'Done',      'Card arquivado',                                        '2026-04-02 10:15:00'),
  (14, 'Protótipo inicial da UI',                          'card_archived',     NULL,           NULL,         NULL,       'Done',      'Done',      'Card arquivado',                                        '2026-03-25 18:00:00');
 
+-- ---------------------------------------------------------------
+-- Seed: card_templates (modelos reutilizáveis no "Novo card")
+-- ---------------------------------------------------------------
+INSERT INTO card_templates (name, content, subject, notes, priority, actions) VALUES
+ ('Bug report',
+  'Descrever o bug',
+  'Bug',
+  'Passos para reproduzir:\n1.\n2.\n3.\n\nResultado esperado:\nResultado atual:',
+  'urgente',
+  JSON_ARRAY(
+    JSON_OBJECT('text','Reproduzir em ambiente limpo','done', false),
+    JSON_OBJECT('text','Escrever teste de regressão','done', false),
+    JSON_OBJECT('text','Abrir PR com correção','done', false),
+    JSON_OBJECT('text','QA valida em HOM','done', false)
+  )),
+ ('Nova feature',
+  'Nome da feature',
+  'Feature',
+  'Problema que resolve:\nPúblico alvo:\nCritérios de aceitação:',
+  'ponderado',
+  JSON_ARRAY(
+    JSON_OBJECT('text','Brainstorm / design','done', false),
+    JSON_OBJECT('text','Implementar','done', false),
+    JSON_OBJECT('text','Escrever testes','done', false),
+    JSON_OBJECT('text','Documentar no README','done', false),
+    JSON_OBJECT('text','Revisão de código','done', false)
+  )),
+ ('Reunião / follow-up',
+  'Reunião com ',
+  'Reunião',
+  'Pauta:\nParticipantes:\nDecisões:\nPróximos passos:',
+  'normal',
+  JSON_ARRAY(
+    JSON_OBJECT('text','Enviar ata para os participantes','done', false),
+    JSON_OBJECT('text','Agendar follow-up','done', false)
+  ));
+
 -- Keep AUTO_INCREMENT sane for subsequent inserts.
 ALTER TABLE cards AUTO_INCREMENT = 100;
 ALTER TABLE change_logs AUTO_INCREMENT = 100;
+ALTER TABLE card_templates AUTO_INCREMENT = 100;

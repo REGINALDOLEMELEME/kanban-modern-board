@@ -137,6 +137,103 @@ try {
         respond(['success' => true, 'name' => $name]);
     }
 
+    if ($method === 'GET' && $route === '/templates') {
+        $rows = $pdo->query('SELECT id, name, content, subject, notes, priority, actions, created_at, updated_at FROM card_templates ORDER BY name ASC')->fetchAll();
+        foreach ($rows as &$row) {
+            $row['actions'] = decodeJsonList($row['actions'] ?? null, 'actions');
+        }
+        unset($row);
+        respond($rows);
+    }
+
+    if ($method === 'POST' && $route === '/templates') {
+        $body = getJsonBody();
+        $name = trim((string)($body['name'] ?? ''));
+        if ($name === '') {
+            respond(['error' => 'Missing template name'], 400);
+        }
+
+        $content = normalizeNullableText($body['content'] ?? null);
+        $subject = normalizeNullableText($body['subject'] ?? null);
+        $notes = normalizeNullableText($body['notes'] ?? null);
+        $priority = sanitizePriority($body['priority'] ?? null);
+        $actions = sanitizeActions($body['actions'] ?? []);
+
+        try {
+            $stmt = $pdo->prepare(
+                'INSERT INTO card_templates (name, content, subject, notes, priority, actions)
+                 VALUES (?, ?, ?, ?, ?, ?)'
+            );
+            $stmt->execute([$name, $content, $subject, $notes, $priority, json_encode($actions, JSON_UNESCAPED_UNICODE)]);
+        } catch (PDOException $e) {
+            if ($e->getCode() === '23000') {
+                respond(['error' => 'Já existe um modelo com esse nome.'], 409);
+            }
+            throw $e;
+        }
+
+        $id = (int)$pdo->lastInsertId();
+        respond([
+            'id' => $id,
+            'name' => $name,
+            'content' => $content,
+            'subject' => $subject,
+            'notes' => $notes,
+            'priority' => $priority,
+            'actions' => $actions,
+        ], 201);
+    }
+
+    if ($method === 'PUT' && preg_match('#^/templates/(\d+)$#', $route, $m)) {
+        $templateId = (int)$m[1];
+        $body = getJsonBody();
+        $name = trim((string)($body['name'] ?? ''));
+        if ($name === '') {
+            respond(['error' => 'Missing template name'], 400);
+        }
+
+        $stmt = $pdo->prepare('SELECT id FROM card_templates WHERE id = ? LIMIT 1');
+        $stmt->execute([$templateId]);
+        if (!$stmt->fetch()) {
+            respond(['error' => 'Template not found'], 404);
+        }
+
+        $content = normalizeNullableText($body['content'] ?? null);
+        $subject = normalizeNullableText($body['subject'] ?? null);
+        $notes = normalizeNullableText($body['notes'] ?? null);
+        $priority = sanitizePriority($body['priority'] ?? null);
+        $actions = sanitizeActions($body['actions'] ?? []);
+
+        try {
+            $stmt = $pdo->prepare(
+                'UPDATE card_templates SET name = ?, content = ?, subject = ?, notes = ?, priority = ?, actions = ? WHERE id = ?'
+            );
+            $stmt->execute([$name, $content, $subject, $notes, $priority, json_encode($actions, JSON_UNESCAPED_UNICODE), $templateId]);
+        } catch (PDOException $e) {
+            if ($e->getCode() === '23000') {
+                respond(['error' => 'Já existe um modelo com esse nome.'], 409);
+            }
+            throw $e;
+        }
+
+        respond([
+            'id' => $templateId,
+            'name' => $name,
+            'content' => $content,
+            'subject' => $subject,
+            'notes' => $notes,
+            'priority' => $priority,
+            'actions' => $actions,
+        ]);
+    }
+
+    if ($method === 'DELETE' && preg_match('#^/templates/(\d+)$#', $route, $m)) {
+        $templateId = (int)$m[1];
+        $stmt = $pdo->prepare('DELETE FROM card_templates WHERE id = ?');
+        $stmt->execute([$templateId]);
+        respond(['success' => true]);
+    }
+
     if ($method === 'GET' && $route === '/board') {
         $columns = $pdo->query('SELECT * FROM columns ORDER BY order_index ASC')->fetchAll();
         $cards = $pdo->query('SELECT * FROM cards WHERE archived = 0 ORDER BY order_index ASC')->fetchAll();

@@ -16,6 +16,7 @@
             <div class="board-name-row">
                 <input id="board-name-input" class="board-name-input" type="text" maxlength="255" aria-label="Nome do quadro" />
                 <div class="board-top-actions">
+                    <button id="templates-menu-btn" class="board-name-btn board-name-btn-secondary" type="button">Modelos</button>
                     <button id="logs-menu-btn" class="board-name-btn board-name-btn-secondary" type="button">Logs</button>
                     <button id="archived-menu-btn" class="board-name-btn board-name-btn-secondary">Arquivados</button>
                     <button id="export-pdf-btn" class="board-name-btn board-name-btn-secondary">Exportar PDF</button>
@@ -41,6 +42,10 @@
             <div class="add-card-container">
                 <button class="add-card-btn">+ Novo card</button>
                 <div class="add-card-form hidden">
+                    <label class="new-card-priority-label">Modelo (opcional)</label>
+                    <select class="new-card-template-input">
+                        <option value="">— Em branco —</option>
+                    </select>
                     <input class="new-card-title-input" type="text" placeholder="Titulo" />
                     <input class="new-card-subject-input" type="text" placeholder="Assunto" />
                     <label class="new-card-priority-label">Prazo</label>
@@ -161,6 +166,49 @@
         </div>
     </div>
 
+    <div id="templates-modal" class="blocked-modal hidden" role="dialog" aria-modal="true" aria-labelledby="templates-modal-title">
+        <div class="blocked-modal-panel templates-modal-panel">
+            <h3 id="templates-modal-title">Modelos de card</h3>
+            <p class="blocked-modal-hint">Crie modelos reutilizáveis para acelerar a criação de cards repetitivos.</p>
+            <div class="templates-layout">
+                <div class="templates-list-wrap">
+                    <div class="templates-list-header">
+                        <strong>Modelos salvos</strong>
+                        <button id="template-new-btn" class="save-card-btn" type="button">+ Novo modelo</button>
+                    </div>
+                    <div id="templates-list" class="templates-list"></div>
+                </div>
+                <form id="template-form" class="template-form hidden">
+                    <input type="hidden" id="template-id-input" />
+                    <label class="new-card-priority-label" for="template-name-input">Nome do modelo</label>
+                    <input id="template-name-input" class="blocked-modal-input" type="text" maxlength="120" required />
+                    <label class="new-card-priority-label" for="template-content-input">Titulo padrão do card</label>
+                    <input id="template-content-input" class="blocked-modal-input" type="text" />
+                    <label class="new-card-priority-label" for="template-subject-input">Assunto</label>
+                    <input id="template-subject-input" class="blocked-modal-input" type="text" />
+                    <label class="new-card-priority-label" for="template-notes-input">Observações</label>
+                    <textarea id="template-notes-input" class="blocked-modal-input" placeholder="Observações pré-preenchidas"></textarea>
+                    <label class="new-card-priority-label" for="template-actions-input">Ações (uma por linha)</label>
+                    <textarea id="template-actions-input" class="blocked-modal-input" placeholder="Passo 1&#10;Passo 2"></textarea>
+                    <label class="new-card-priority-label" for="template-priority-input">Prioridade</label>
+                    <select id="template-priority-input" class="blocked-modal-input">
+                        <option value="normal">Normal</option>
+                        <option value="ponderado">Ponderado</option>
+                        <option value="urgente">Urgente</option>
+                    </select>
+                    <div class="blocked-modal-actions">
+                        <button id="template-save-btn" class="save-card-btn" type="submit">Salvar modelo</button>
+                        <button id="template-delete-btn" class="board-name-btn board-name-btn-secondary hidden" type="button">Excluir</button>
+                        <button id="template-cancel-btn" class="cancel-card-btn" type="button" aria-label="Fechar formulário">X</button>
+                    </div>
+                </form>
+            </div>
+            <div class="blocked-modal-actions">
+                <button id="templates-close-btn" class="cancel-card-btn" type="button" aria-label="Fechar">X</button>
+            </div>
+        </div>
+    </div>
+
     <div id="logs-modal" class="blocked-modal hidden" role="dialog" aria-modal="true" aria-labelledby="logs-modal-title">
         <div class="blocked-modal-panel logs-modal-panel">
             <h3 id="logs-modal-title">Log de alteracoes</h3>
@@ -204,7 +252,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=20260416-3"></script>
+    <script src="script.js?v=20260420-1"></script>
 </body>
 </html>
 

@@ -17,6 +17,10 @@ const logsState = {
     totalPages: 1,
     lastFilters: {}
 };
+const templatesState = {
+    list: [],
+    loaded: false
+};
 
 function showToast(message, type = 'error') {
     let container = document.getElementById('toast-container');
@@ -45,9 +49,10 @@ document.addEventListener('DOMContentLoaded', () => {
     setupPdfExport();
     setupArchivedMenu();
     setupLogsMenu();
+    setupTemplatesMenu();
     setupGlobalCollapseControl();
     loadBoardName();
-    loadBoard();
+    loadTemplates().then(() => loadBoard());
 });
 
 document.addEventListener('click', async event => {
@@ -100,6 +105,174 @@ function setupArchivedMenu() {
     archivedCloseBtn.addEventListener('click', () => {
         archivedModal.classList.add('hidden');
     });
+}
+
+function setupTemplatesMenu() {
+    const menuBtn = document.getElementById('templates-menu-btn');
+    const modal = document.getElementById('templates-modal');
+    const closeBtn = document.getElementById('templates-close-btn');
+    const newBtn = document.getElementById('template-new-btn');
+    const form = document.getElementById('template-form');
+    const cancelBtn = document.getElementById('template-cancel-btn');
+    const deleteBtn = document.getElementById('template-delete-btn');
+
+    if (!menuBtn || !modal || !form) return;
+
+    menuBtn.addEventListener('click', async () => {
+        modal.classList.remove('hidden');
+        hideTemplateForm();
+        await loadTemplates();
+        renderTemplatesList();
+    });
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            modal.classList.add('hidden');
+            hideTemplateForm();
+        });
+    }
+
+    if (newBtn) {
+        newBtn.addEventListener('click', () => {
+            openTemplateForm(null);
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            hideTemplateForm();
+        });
+    }
+
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', async () => {
+            const id = document.getElementById('template-id-input').value;
+            if (!id) return;
+            if (!confirm('Excluir este modelo? Os cards já criados não serão afetados.')) return;
+            await deleteTemplate(id);
+            await loadTemplates();
+            renderTemplatesList();
+            hideTemplateForm();
+        });
+    }
+
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        await submitTemplateForm();
+    });
+}
+
+function renderTemplatesList() {
+    const listEl = document.getElementById('templates-list');
+    if (!listEl) return;
+
+    if (!templatesState.list.length) {
+        listEl.innerHTML = '<p class="templates-list-empty">Nenhum modelo ainda. Clique em "+ Novo modelo" para começar.</p>';
+        return;
+    }
+
+    listEl.innerHTML = templatesState.list.map(t => `
+        <div class="template-item" data-id="${t.id}">
+            <div class="template-item-meta">
+                <span class="template-item-name">${escapeHtml(t.name)}</span>
+                <span class="template-item-sub">${escapeHtml(t.subject || t.content || '—')}</span>
+            </div>
+            <span class="template-item-priority priority-${escapeHtml(t.priority || 'normal')}">${escapeHtml(buildPriorityLabel(t.priority || 'normal'))}</span>
+        </div>
+    `).join('');
+
+    listEl.querySelectorAll('.template-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const id = Number(item.dataset.id);
+            const template = templatesState.list.find(t => t.id === id);
+            if (template) openTemplateForm(template);
+            listEl.querySelectorAll('.template-item').forEach(el => el.classList.remove('is-selected'));
+            item.classList.add('is-selected');
+        });
+    });
+}
+
+function openTemplateForm(template) {
+    const form = document.getElementById('template-form');
+    const deleteBtn = document.getElementById('template-delete-btn');
+    if (!form) return;
+
+    form.classList.remove('hidden');
+    document.getElementById('template-id-input').value = template?.id || '';
+    document.getElementById('template-name-input').value = template?.name || '';
+    document.getElementById('template-content-input').value = template?.content || '';
+    document.getElementById('template-subject-input').value = template?.subject || '';
+    document.getElementById('template-notes-input').value = template?.notes || '';
+    document.getElementById('template-actions-input').value = (template?.actions || []).map(a => a.text || '').filter(Boolean).join('\n');
+    document.getElementById('template-priority-input').value = template?.priority || 'normal';
+
+    if (deleteBtn) {
+        deleteBtn.classList.toggle('hidden', !template);
+    }
+    document.getElementById('template-name-input').focus();
+}
+
+function hideTemplateForm() {
+    const form = document.getElementById('template-form');
+    if (form) form.classList.add('hidden');
+    const listEl = document.getElementById('templates-list');
+    if (listEl) listEl.querySelectorAll('.template-item').forEach(el => el.classList.remove('is-selected'));
+}
+
+async function submitTemplateForm() {
+    const id = document.getElementById('template-id-input').value;
+    const name = document.getElementById('template-name-input').value.trim();
+    if (!name) {
+        showToast('Informe um nome para o modelo.');
+        return;
+    }
+
+    const payload = {
+        name,
+        content: document.getElementById('template-content-input').value.trim() || null,
+        subject: document.getElementById('template-subject-input').value.trim() || null,
+        notes: document.getElementById('template-notes-input').value.trim() || null,
+        priority: document.getElementById('template-priority-input').value || 'normal',
+        actions: parseActionsFromText(document.getElementById('template-actions-input').value)
+    };
+
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `${API_URL}/templates/${id}` : `${API_URL}/templates`;
+
+    try {
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            let message = 'Falha ao salvar modelo.';
+            try {
+                const body = await response.json();
+                if (body?.error) message = body.error;
+            } catch { /* keep default */ }
+            showToast(message);
+            return;
+        }
+        await loadTemplates();
+        renderTemplatesList();
+        hideTemplateForm();
+        showToast(id ? 'Modelo atualizado.' : 'Modelo criado.');
+    } catch (err) {
+        console.error('Error saving template:', err);
+        showToast('Falha ao salvar modelo.');
+    }
+}
+
+async function deleteTemplate(id) {
+    try {
+        const response = await fetch(`${API_URL}/templates/${id}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete template');
+        showToast('Modelo excluído.');
+    } catch (err) {
+        console.error('Error deleting template:', err);
+        showToast('Falha ao excluir modelo.');
+    }
 }
 
 function setupLogsMenu() {
@@ -483,12 +656,20 @@ function renderBoard(columnsData) {
         const saveBtn = columnClone.querySelector('.save-card-btn');
         const cancelBtn = columnClone.querySelector('.cancel-card-btn');
         const toggleCollapseBtn = columnClone.querySelector('.column-toggle-collapse-btn');
+        const templateInput = columnClone.querySelector('.new-card-template-input');
         const titleInput = columnClone.querySelector('.new-card-title-input');
         const subjectInput = columnClone.querySelector('.new-card-subject-input');
         const dueDateInput = columnClone.querySelector('.new-card-due-date-input');
         const notesInput = columnClone.querySelector('.new-card-notes-input');
         const actionsInput = columnClone.querySelector('.new-card-actions-input');
         const priorityInput = columnClone.querySelector('.new-card-priority-input');
+
+        populateTemplateSelect(templateInput);
+        templateInput.addEventListener('change', () => {
+            applyTemplateToForm(templateInput.value, {
+                titleInput, subjectInput, notesInput, actionsInput, priorityInput
+            });
+        });
 
         toggleCollapseBtn.addEventListener('click', () => {
             const cards = [...cardList.querySelectorAll('.card')];
@@ -519,7 +700,7 @@ function renderBoard(columnsData) {
         cancelBtn.addEventListener('click', () => {
             addForm.classList.add('hidden');
             addBtn.classList.remove('hidden');
-            resetAddCardForm(titleInput, subjectInput, dueDateInput, notesInput, actionsInput, priorityInput);
+            resetAddCardForm(titleInput, subjectInput, dueDateInput, notesInput, actionsInput, priorityInput, templateInput);
         });
 
         saveBtn.addEventListener('click', async () => {
@@ -538,7 +719,7 @@ function renderBoard(columnsData) {
             await addCard(columnData.id, { title, subject, dueDate, notes, actions, priority }, cardList, cardTemplate);
             addForm.classList.add('hidden');
             addBtn.classList.remove('hidden');
-            resetAddCardForm(titleInput, subjectInput, dueDateInput, notesInput, actionsInput, priorityInput);
+            resetAddCardForm(titleInput, subjectInput, dueDateInput, notesInput, actionsInput, priorityInput, templateInput);
             updateColumnCollapseButtonLabel(cardList, toggleCollapseBtn);
             updateGlobalCollapseButtonLabel();
         });
@@ -562,13 +743,71 @@ function renderBoard(columnsData) {
     updateGlobalCollapseButtonLabel();
 }
 
-function resetAddCardForm(titleInput, subjectInput, dueDateInput, notesInput, actionsInput, priorityInput) {
+function resetAddCardForm(titleInput, subjectInput, dueDateInput, notesInput, actionsInput, priorityInput, templateInput) {
     titleInput.value = '';
     subjectInput.value = '';
     dueDateInput.value = '';
     notesInput.value = '';
     actionsInput.value = '';
     priorityInput.value = 'normal';
+    if (templateInput) templateInput.value = '';
+}
+
+function populateTemplateSelect(selectEl) {
+    if (!selectEl) return;
+    const previousValue = selectEl.value;
+    selectEl.innerHTML = '';
+    const blankOption = document.createElement('option');
+    blankOption.value = '';
+    blankOption.textContent = '— Em branco —';
+    selectEl.appendChild(blankOption);
+
+    templatesState.list.forEach(template => {
+        const option = document.createElement('option');
+        option.value = String(template.id);
+        option.textContent = template.name;
+        selectEl.appendChild(option);
+    });
+
+    if (previousValue && templatesState.list.some(t => String(t.id) === previousValue)) {
+        selectEl.value = previousValue;
+    } else {
+        selectEl.value = '';
+    }
+}
+
+function refreshAllTemplatePickers() {
+    document.querySelectorAll('.new-card-template-input').forEach(populateTemplateSelect);
+}
+
+function applyTemplateToForm(templateId, inputs) {
+    if (!templateId) return;
+    const template = templatesState.list.find(t => String(t.id) === String(templateId));
+    if (!template) return;
+
+    if (inputs.titleInput) inputs.titleInput.value = template.content || '';
+    if (inputs.subjectInput) inputs.subjectInput.value = template.subject || '';
+    if (inputs.notesInput) inputs.notesInput.value = template.notes || '';
+    if (inputs.actionsInput) {
+        const text = (template.actions || []).map(a => a.text || '').filter(Boolean).join('\n');
+        inputs.actionsInput.value = text;
+    }
+    if (inputs.priorityInput) inputs.priorityInput.value = template.priority || 'normal';
+    if (inputs.titleInput) inputs.titleInput.focus();
+}
+
+async function loadTemplates() {
+    try {
+        const response = await fetch(`${API_URL}/templates`);
+        if (!response.ok) throw new Error('Failed to load templates');
+        const data = await response.json();
+        templatesState.list = Array.isArray(data) ? data : [];
+        templatesState.loaded = true;
+    } catch (err) {
+        console.error('Error loading templates:', err);
+        templatesState.list = [];
+    }
+    refreshAllTemplatePickers();
 }
 
 function normalizeDateInput(value) {
