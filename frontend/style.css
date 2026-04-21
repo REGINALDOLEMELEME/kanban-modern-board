@@ -182,7 +182,7 @@ body {
 
 .board {
     display: flex;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 9px;
     width: calc(100% - 40px);
     margin: 0 auto;
@@ -253,7 +253,11 @@ body {
 .card-list {
     flex: 1;
     overflow-y: auto;
-    min-height: 20px;
+    /* min-height large enough that a near-empty column still exposes a
+       drop zone filling the column body, so cards can be dropped sideways
+       without scrolling the page. flex:1 stretches it further when the
+       column is taller. */
+    min-height: 120px;
     padding-right: 2px;
 }
 

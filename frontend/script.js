@@ -1255,12 +1255,16 @@ function handleDragEnd() {
 }
 
 function revertDraggedCardPosition() {
-    if (!draggedCard || !dragOriginParent) return;
+    restoreCardPosition(draggedCard, dragOriginParent, dragOriginNextSibling);
+}
 
-    if (dragOriginNextSibling && dragOriginNextSibling.parentElement === dragOriginParent) {
-        dragOriginParent.insertBefore(draggedCard, dragOriginNextSibling);
+function restoreCardPosition(cardEl, originParent, originNextSibling) {
+    if (!cardEl || !originParent) return;
+
+    if (originNextSibling && originNextSibling.parentElement === originParent) {
+        originParent.insertBefore(cardEl, originNextSibling);
     } else {
-        dragOriginParent.appendChild(draggedCard);
+        originParent.appendChild(cardEl);
     }
 }
 
@@ -1327,6 +1331,11 @@ async function handleDrop(e) {
     e.preventDefault();
     if (!draggedCard) return;
     const movedCard = draggedCard;
+    // Capture origin refs before awaiting the blocked modal — `dragend` fires
+    // during the await and nulls the globals, so we need our own copies to
+    // roll back if the user cancels without filling the block reason.
+    const movedOriginParent = dragOriginParent;
+    const movedOriginNextSibling = dragOriginNextSibling;
 
     const targetColumnEl = this.closest('.column');
     const columnId = targetColumnEl.dataset.id;
@@ -1343,7 +1352,7 @@ async function handleDrop(e) {
         });
 
         if (!details) {
-            revertDraggedCardPosition();
+            restoreCardPosition(movedCard, movedOriginParent, movedOriginNextSibling);
             return;
         }
 
@@ -1402,7 +1411,7 @@ async function handleDrop(e) {
         await loadBoard();
     } catch (err) {
         console.error('Failed to move card:', err);
-        revertDraggedCardPosition();
+        restoreCardPosition(movedCard, movedOriginParent, movedOriginNextSibling);
         showToast(err.message || 'Falha ao salvar nova coluna do card.');
     }
 }
