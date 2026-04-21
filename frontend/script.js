@@ -3,7 +3,7 @@ const API_URL = (() => {
     const appBase = path.includes('/frontend/')
         ? path.slice(0, path.indexOf('/frontend/')) + '/'
         : path.replace(/[^/]*$/, '');
-    return `${window.location.origin}${appBase}api/index.php?route=`;
+    return `${window.location.origin}${appBase}backend2/api/index.php?route=`;
 })();
 
 let draggedCard = null;
@@ -1390,11 +1390,40 @@ async function handleDrop(e) {
         }
 
         applyCardVisuals(movedCard);
+
+        const originColumnId = dragOriginColumnId;
+        const columnsToReorder = new Set();
+        columnsToReorder.add(String(columnId));
+        if (originColumnId && String(originColumnId) !== String(columnId)) {
+            columnsToReorder.add(String(originColumnId));
+        }
+        await Promise.all([...columnsToReorder].map(persistColumnOrder));
+
         await loadBoard();
     } catch (err) {
         console.error('Failed to move card:', err);
         revertDraggedCardPosition();
         showToast(err.message || 'Falha ao salvar nova coluna do card.');
+    }
+}
+
+async function persistColumnOrder(columnId) {
+    const columnEl = document.querySelector(`.column[data-id="${columnId}"]`);
+    if (!columnEl) return;
+    const cardsContainer = columnEl.querySelector('.card-list');
+    if (!cardsContainer) return;
+    const cardIds = [...cardsContainer.querySelectorAll('.card')]
+        .map(el => Number(el.dataset.id))
+        .filter(id => Number.isFinite(id) && id > 0);
+
+    try {
+        await fetch(`${API_URL}/columns/${columnId}/order`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ card_ids: cardIds })
+        });
+    } catch (err) {
+        console.error('Failed to persist column order:', err);
     }
 }
 

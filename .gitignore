@@ -2,3 +2,6 @@ node_modules/
 backend/node_modules/
 .DS_Store
 Thumbs.db
+
+# Backend2 local config carries real DB credentials — do not commit.
+backend2/config.php

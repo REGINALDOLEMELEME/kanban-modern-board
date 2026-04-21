@@ -1,9 +1,7 @@
 <?php
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+applyCorsHeaders();
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
@@ -24,8 +22,8 @@ try {
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
-    ensureChangeLogsTable($pdo);
 } catch (Throwable $e) {
+    error_log('[kanban] DB connection failed: ' . $e->getMessage());
     respond(['error' => 'Database connection failed'], 500);
 }
 
@@ -227,6 +225,40 @@ try {
         ], 201);
     }
 
+    if ($method === 'PUT' && preg_match('#^/columns/(\d+)/order$#', $route, $m)) {
+        $columnId = (int)$m[1];
+        $body = getJsonBody();
+        $cardIds = $body['card_ids'] ?? null;
+
+        if (!is_array($cardIds)) {
+            respond(['error' => 'Missing card_ids array'], 400);
+        }
+
+        $stmt = $pdo->prepare('SELECT id FROM `columns` WHERE id = ? LIMIT 1');
+        $stmt->execute([$columnId]);
+        if (!$stmt->fetch()) {
+            respond(['error' => 'Column not found'], 404);
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $update = $pdo->prepare('UPDATE cards SET order_index = ? WHERE id = ? AND column_id = ?');
+            $index = 1;
+            foreach ($cardIds as $rawId) {
+                $id = (int)$rawId;
+                if ($id <= 0) continue;
+                $update->execute([$index, $id, $columnId]);
+                $index++;
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+
+        respond(['success' => true, 'column_id' => $columnId, 'count' => $index - 1]);
+    }
+
     if ($method === 'PUT' && preg_match('#^/cards/(\d+)/move$#', $route, $m)) {
         $cardId = (int)$m[1];
         $body = getJsonBody();
@@ -253,19 +285,42 @@ try {
         $blockedReason = sanitizeNullableText($body['blocked_reason'] ?? null);
         $blockedUntil = sanitizeDate($body['blocked_until'] ?? null);
 
+        $columnChanged = (int)$beforeCard['column_id'] !== $columnId;
+        $newOrderIndex = null;
+        if ($columnChanged) {
+            $stmt = $pdo->prepare('SELECT COALESCE(MAX(order_index), 0) AS max_order FROM cards WHERE column_id = ?');
+            $stmt->execute([$columnId]);
+            $newOrderIndex = (int)($stmt->fetch()['max_order'] ?? 0) + 1;
+        }
+
         if ($isBlocked) {
             if ($blockedReason && $blockedUntil) {
-                $stmt = $pdo->prepare('UPDATE cards SET column_id = ?, blocked_reason = ?, blocked_until = ? WHERE id = ?');
-                $stmt->execute([$columnId, $blockedReason, $blockedUntil, $cardId]);
+                if ($columnChanged) {
+                    $stmt = $pdo->prepare('UPDATE cards SET column_id = ?, blocked_reason = ?, blocked_until = ?, order_index = ? WHERE id = ?');
+                    $stmt->execute([$columnId, $blockedReason, $blockedUntil, $newOrderIndex, $cardId]);
+                } else {
+                    $stmt = $pdo->prepare('UPDATE cards SET column_id = ?, blocked_reason = ?, blocked_until = ? WHERE id = ?');
+                    $stmt->execute([$columnId, $blockedReason, $blockedUntil, $cardId]);
+                }
             } elseif ($blockedReason === null && $blockedUntil === null) {
-                $stmt = $pdo->prepare('UPDATE cards SET column_id = ? WHERE id = ?');
-                $stmt->execute([$columnId, $cardId]);
+                if ($columnChanged) {
+                    $stmt = $pdo->prepare('UPDATE cards SET column_id = ?, order_index = ? WHERE id = ?');
+                    $stmt->execute([$columnId, $newOrderIndex, $cardId]);
+                } else {
+                    $stmt = $pdo->prepare('UPDATE cards SET column_id = ? WHERE id = ?');
+                    $stmt->execute([$columnId, $cardId]);
+                }
             } else {
                 respond(['error' => 'Missing blocked_reason or blocked_until for Blocked column'], 400);
             }
         } else {
-            $stmt = $pdo->prepare('UPDATE cards SET column_id = ?, blocked_reason = NULL, blocked_until = NULL WHERE id = ?');
-            $stmt->execute([$columnId, $cardId]);
+            if ($columnChanged) {
+                $stmt = $pdo->prepare('UPDATE cards SET column_id = ?, blocked_reason = NULL, blocked_until = NULL, order_index = ? WHERE id = ?');
+                $stmt->execute([$columnId, $newOrderIndex, $cardId]);
+            } else {
+                $stmt = $pdo->prepare('UPDATE cards SET column_id = ?, blocked_reason = NULL, blocked_until = NULL WHERE id = ?');
+                $stmt->execute([$columnId, $cardId]);
+            }
         }
 
         $stmt = $pdo->prepare('SELECT blocked_reason, blocked_until FROM cards WHERE id = ? LIMIT 1');
@@ -317,13 +372,13 @@ try {
         $body = getJsonBody();
         $beforeCard = getCardSnapshot($pdo, $cardId);
 
+        if (!$beforeCard) {
+            respond(['error' => 'Card not found'], 404);
+        }
+
         $content = trim((string)($body['content'] ?? ''));
         if ($content === '') {
             respond(['error' => 'Missing content'], 400);
-        }
-
-        if (!$beforeCard) {
-            respond(['error' => 'Card not found'], 404);
         }
 
         $subject = normalizeNullableText($body['subject'] ?? null);
@@ -583,7 +638,50 @@ try {
 
     respond(['error' => 'Route not found'], 404);
 } catch (Throwable $e) {
-    respond(['error' => 'Internal server error'], 500);
+    error_log('[kanban] Unhandled: ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    $payload = ['error' => 'Internal server error'];
+    if (isDebugMode()) {
+        $payload['debug'] = [
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ];
+    }
+    respond($payload, 500);
+}
+
+function isDebugMode(): bool
+{
+    return filter_var(getenv('APP_DEBUG') ?: '0', FILTER_VALIDATE_BOOLEAN);
+}
+
+function applyCorsHeaders(): void
+{
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type');
+
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    $allowed = [
+        'http://127.0.0.1:8787',
+        'http://localhost:8787',
+    ];
+    $extra = getenv('KANBAN_ALLOWED_ORIGINS');
+    if (is_string($extra) && $extra !== '') {
+        foreach (explode(',', $extra) as $entry) {
+            $entry = trim($entry);
+            if ($entry !== '') {
+                $allowed[] = $entry;
+            }
+        }
+    }
+
+    if ($origin !== '' && in_array($origin, $allowed, true)) {
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Vary: Origin');
+    } elseif ($origin === '') {
+        // Same-origin requests (no Origin header) are always allowed.
+        header('Access-Control-Allow-Origin: ' . ($allowed[0] ?? 'http://127.0.0.1:8787'));
+    }
 }
 
 function getRoute(): string
@@ -737,28 +835,6 @@ function decodeJsonList($value, string $type): array
     }
 
     return $type === 'comments' ? sanitizeComments($decoded) : sanitizeActions($decoded);
-}
-
-function ensureChangeLogsTable(PDO $pdo): void
-{
-    $pdo->exec(
-        'CREATE TABLE IF NOT EXISTS change_logs (
-            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            card_id INT NULL,
-            card_title VARCHAR(255) NULL,
-            action VARCHAR(64) NOT NULL,
-            field_name VARCHAR(64) NULL,
-            old_value TEXT NULL,
-            new_value TEXT NULL,
-            from_column VARCHAR(255) NULL,
-            to_column VARCHAR(255) NULL,
-            details TEXT NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_change_logs_created_at (created_at),
-            INDEX idx_change_logs_action (action),
-            INDEX idx_change_logs_card_id (card_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
-    );
 }
 
 function getCardSnapshot(PDO $pdo, int $cardId): ?array
