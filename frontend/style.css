@@ -769,32 +769,40 @@ body {
     filter: brightness(1.05);
 }
 
-.cancel-card-btn {
-    border: 1px solid var(--line);
+.danger-btn {
+    border: none;
     border-radius: 10px;
-    background: #ffffff;
-    color: var(--ink-soft);
+    background: linear-gradient(140deg, #e23a47, #b42323);
+    color: #ffffff;
+    padding: 8px 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.danger-btn:hover {
+    filter: brightness(1.05);
+}
+
+.cancel-card-btn {
+    border: 1px solid #f3c7c7;
+    border-radius: 10px;
+    background: #fff5f5;
+    color: #b42323;
     width: 34px;
     height: 34px;
+    font-weight: 700;
     cursor: pointer;
 }
 
 .cancel-card-btn:hover {
-    color: var(--ink);
+    background: #ffe6e6;
+    color: #8f1616;
 }
 
 .add-card-form .cancel-card-btn {
     position: absolute;
     top: 2px;
     right: 2px;
-    border-color: #f3c7c7;
-    background: #fff5f5;
-    color: #b42323;
-}
-
-.add-card-form .cancel-card-btn:hover {
-    background: #ffe6e6;
-    color: #8f1616;
 }
 
 .blocked-modal {
